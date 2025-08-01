@@ -26,3 +26,9 @@ func SignMessage(msg *UserIntent, sk ed25519.PrivateKey) (*SignedMessage, error)
 
 	return &SignedMessage{Message: msg, Signature: sign, PublicKey: pk}, nil
 }
+
+type IntentRequestBody struct {
+	_         tlb.Magic   `tlb:"#588b3270" json:"_"`
+	Message   *UserIntent `tlb:"^" json:"message"`
+	Signature []byte      `tlb:"bits 512" json:"signature"`
+}
