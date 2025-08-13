@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	MinGas = tlb.MustFromTON("0.05")
+	MinGas = tlb.MustFromTON("0.35")
 )
 
 type Client struct {
@@ -84,12 +84,13 @@ func (c *Client) DepositJetton(from *wallet.Wallet, owner, vault, jettonMaster *
 		return nil, err
 	}
 
-	transferPayload, err := jetton.BuildTransferPayload(vault, from.WalletAddress(), *amount, tlb.MustFromTON("0.15"), payload, nil)
+	transferPayload, err := jetton.BuildTransferPayload(vault, from.WalletAddress(), *amount, MinGas, payload, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	msg := wallet.SimpleMessage(jettonWallet.Address(), tlb.MustFromTON("0.3"), transferPayload)
+	jettonTransfer := tlb.MustFromTON("0.05")
+	msg := wallet.SimpleMessage(jettonWallet.Address(), *MinGas.MustAdd(&jettonTransfer), transferPayload)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 
 	return tx, err
