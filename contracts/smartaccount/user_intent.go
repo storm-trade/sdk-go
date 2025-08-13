@@ -9,16 +9,10 @@ import (
 	"github.com/xssnick/tonutils-go/tlb"
 )
 
-type PaymentRequest struct {
-	Amount       *tlb.Coins       `tlb:"." json:"amount"`
-	VaultAddress *address.Address `tlb:"addr" json:"vault_address"`
-}
-
-// UserIntentPayload user_intent_payload#_ amm_address:MsgAddressInt sa_address:MsgAddressInt direction:Direction order:^UserOrder = UserIntentPayload;
+// UserIntentPayload user_intent_payload#_ amm_address:MsgAddressInt sa_address:MsgAddressInt order:^UserOrder = UserIntentPayload;
 type UserIntentPayload struct {
 	VAmm         *address.Address `tlb:"addr" json:"v_amm"`
 	SmartAccount *address.Address `tlb:"addr" json:"smart_account"`
-	Direction    uint             `tlb:"## 1" json:"direction"`
 	Order        *schemas.Order   `tlb:"^" json:"order"`
 }
 
