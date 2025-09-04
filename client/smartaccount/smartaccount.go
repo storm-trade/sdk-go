@@ -97,7 +97,7 @@ func (c *Client) DepositJetton(from *wallet.Wallet, owner, vault, jettonMaster *
 }
 
 func (c *Client) AddPublicKey(from *wallet.Wallet, publicKey smartaccount.PublicKey) (*tlb.Transaction, error) {
-	payload := smartaccount.AddPublicKeyPayload{
+	payload := smartaccount.AddPublicKey{
 		QueryID:   uint64(time.Now().Unix()),
 		PublicKey: publicKey,
 	}
@@ -114,7 +114,7 @@ func (c *Client) AddPublicKey(from *wallet.Wallet, publicKey smartaccount.Public
 }
 
 func (c *Client) RemovePublicKey(from *wallet.Wallet, publicKey smartaccount.PublicKey) (*tlb.Transaction, error) {
-	payload := smartaccount.RemovePublicKeyPayload{
+	payload := smartaccount.RemovePublicKey{
 		QueryID:   uint64(time.Now().Unix()),
 		PublicKey: publicKey,
 	}
@@ -131,7 +131,7 @@ func (c *Client) RemovePublicKey(from *wallet.Wallet, publicKey smartaccount.Pub
 }
 
 func (c *Client) RemoveAllExceptCurrentPublicKey(from *wallet.Wallet, publicKey smartaccount.PublicKey) (*tlb.Transaction, error) {
-	payload := smartaccount.RemoveAllExceptCurrentPublicKeyPayload{
+	payload := smartaccount.RemoveAllExceptCurrentPublicKey{
 		QueryID:   uint64(time.Now().Unix()),
 		PublicKey: publicKey,
 	}
@@ -148,7 +148,7 @@ func (c *Client) RemoveAllExceptCurrentPublicKey(from *wallet.Wallet, publicKey 
 }
 
 func (c *Client) Withdraw(from *wallet.Wallet, vault *address.Address, amount *tlb.Coins) (*tlb.Transaction, error) {
-	payload := smartaccount.WithdrawPayload{
+	payload := smartaccount.Withdraw{
 		QueryID:      uint64(time.Now().Unix()),
 		VaultAddress: vault,
 		Amount:       amount,

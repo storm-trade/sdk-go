@@ -3,13 +3,14 @@ package smartaccount
 import (
 	"encoding/hex"
 	"github.com/storm-trade/sdk-go/contracts/hw"
-	schemas "github.com/storm-trade/sdk-go/tlb"
 
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
+
+	schemas "github.com/storm-trade/sdk-go/tlb"
 )
 
-// UserIntentPayload user_intent_payload#_ amm_address:MsgAddressInt sa_address:MsgAddressInt order:^UserOrder = UserIntentPayload;
+// UserIntentPayload user_intent_payload#_ amm_address:MsgAddressInt sa_address:MsgAddressInt direction:Direction order:^UserOrder = UserIntentPayload;
 type UserIntentPayload struct {
 	VAmm         *address.Address `tlb:"addr" json:"v_amm"`
 	SmartAccount *address.Address `tlb:"addr" json:"smart_account"`
@@ -22,7 +23,7 @@ type UserIntent struct {
 	CreatedAt        uint64             `tlb:"## 32" json:"created_at"`
 	ReferenceQueryId *hw.QueryId        `tlb:"maybe ." json:"reference_query_id"`
 	PublicKey        []byte             `tlb:"bits 256" json:"public_key"` // pk
-	Intent           *UserIntentPayload `tlb:"^"`
+	Intent           *UserIntentPayload `tlb:"^" json:"intent"`
 }
 
 func (msg *UserIntent) Hash() (string, error) {

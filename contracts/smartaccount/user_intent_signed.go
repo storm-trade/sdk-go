@@ -15,20 +15,13 @@ func (msg *SignedMessage) Hash() (string, error) {
 	return msg.Message.Hash()
 }
 
-func SignMessage(msg *UserIntent, sk ed25519.PrivateKey) (*SignedMessage, error) {
+func SignMessage(msg *UserIntent, key ed25519.PrivateKey) (*SignedMessage, error) {
 	c, err := tlb.ToCell(msg)
 	if err != nil {
 		return nil, err
 	}
 
-	sign := c.Sign(sk)
-	pk := PublicKey(sk.Public().(ed25519.PublicKey))
+	sign := c.Sign(key)
 
-	return &SignedMessage{Message: msg, Signature: sign, PublicKey: pk}, nil
-}
-
-type IntentRequestBody struct {
-	_         tlb.Magic   `tlb:"#588b3270" json:"_"`
-	Message   *UserIntent `tlb:"^" json:"message"`
-	Signature []byte      `tlb:"bits 512" json:"signature"`
+	return &SignedMessage{Message: msg, Signature: sign}, nil
 }

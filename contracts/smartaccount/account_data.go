@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"github.com/pkg/errors"
+	"github.com/storm-trade/sdk-go/contracts/hw"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 	"math/big"
@@ -20,6 +21,13 @@ type AccountData struct {
 	Highload  *Highload        `tlb:"^" json:"highload"`
 }
 
+type AccountDataBlank struct {
+	Type     uint8            `tlb:"## 8" json:"type"`
+	Factory  *address.Address `tlb:"addr" json:"factory"`
+	Owner    *address.Address `tlb:"addr" json:"owner"`
+	Balances *BalanceList     `tlb:"." json:"balances"`
+}
+
 type Keys struct {
 	Hot            []byte          `tlb:"bits 256" json:"hot"`
 	Cold           []byte          `tlb:"bits 256" json:"cold"`
@@ -34,11 +42,74 @@ type Highload struct {
 	Timeout       uint64           `tlb:"## 24" json:"timeout"`
 }
 
+func QueriesUsed(dictionary *cell.Dictionary) ([]uint64, error) {
+	queriesUsed := make([]uint64, 0)
+	kv, err := dictionary.LoadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, k := range kv {
+		shift, err := k.Key.LoadUInt(13)
+		if err != nil {
+			return nil, err
+		}
+
+		bitsRef, err := k.Value.LoadRef()
+		if err != nil {
+			return nil, err
+		}
+
+		bits := bitsRef.BitsLeft()
+		for bit := range bits {
+			v := bitsRef.MustLoadBoolBit()
+
+			if v {
+				qid := hw.QueryId{Shift: uint16(shift), BitNumber: uint16(bit)}
+				queriesUsed = append(queriesUsed, qid.Seqno())
+			}
+		}
+
+	}
+
+	return queriesUsed, nil
+}
+
+func (h *Highload) MarshalJSON() ([]byte, error) {
+	oldQueries, err := QueriesUsed(h.OldQueries)
+	if err != nil {
+		return nil, err
+	}
+
+	queries, err := QueriesUsed(h.Queries)
+	if err != nil {
+		return nil, err
+	}
+
+	res := struct {
+		OldQueries    []uint64 `json:"old_queries"`
+		Queries       []uint64 `json:"queries"`
+		LastCleanTime uint64   `json:"last_clean_time"`
+		Timeout       uint64   `json:"timeout"`
+	}{
+		OldQueries:    oldQueries,
+		Queries:       queries,
+		LastCleanTime: h.LastCleanTime,
+		Timeout:       h.Timeout,
+	}
+
+	return json.Marshal(res)
+}
+
 type UserPublicKeys struct {
 	Values []PublicKey `json:"values"`
 }
 
 type PublicKey ed25519.PublicKey
+
+func (m *UserPublicKeys) Add(key PublicKey) {
+	m.Values = append(m.Values, key)
+}
 
 func (m *UserPublicKeys) LoadFromCell(slice *cell.Slice) error {
 	deviceDict, err := slice.LoadDict(256)
@@ -72,9 +143,15 @@ func (m *UserPublicKeys) LoadFromCell(slice *cell.Slice) error {
 }
 
 func (m *UserPublicKeys) ToCell() (*cell.Cell, error) {
-	dict, err := m.ToDictionary()
-	if err != nil {
-		return nil, err
+	dict := cell.NewDict(256)
+
+	for _, item := range m.Values {
+		key := cell.BeginCell().MustStoreBigInt(new(big.Int).SetBytes(item), 256).EndCell()
+		err := dict.Set(key, cell.BeginCell().EndCell())
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return cell.BeginCell().MustStoreDict(dict).EndCell(), nil
@@ -102,6 +179,20 @@ type BalanceList struct {
 type BalanceEntry struct {
 	Addr  address.Address `json:"address"`
 	Count uint64          `json:"amount"`
+}
+
+func (b *BalanceList) Get(addr *address.Address) (uint64, error) {
+	for k, v := range b.Balances {
+		if k.StringRaw() == addr.StringRaw() {
+			return v, nil
+		}
+	}
+
+	return 0, nil
+}
+
+func (b *BalanceList) Set(addr *address.Address, v uint64) {
+	b.Balances[addr] = v
 }
 
 func (b *BalanceList) MarshalJSON() ([]byte, error) {
