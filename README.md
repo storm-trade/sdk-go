@@ -59,10 +59,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/storm-trade/sdk-go/client/smartaccount"
+	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/liteclient"
 	"github.com/xssnick/tonutils-go/ton"
-	"github.com/xssnick/tonutils-go/address"
 )
 
 func main() {
@@ -106,6 +107,7 @@ func main() {
 
 ```go
 import (
+"strings"
 "github.com/storm-trade/sdk-go/client/smartaccount"
 sa "github.com/storm-trade/sdk-go/contracts/smartaccount"
 "github.com/xssnick/tonutils-go/tlb"
@@ -175,9 +177,8 @@ tx, err := saClient.RemoveAllExceptCurrentPublicKey(w, currentPubKey)
 
 ```go
 import (
+"time"
 "github.com/storm-trade/sdk-go/tlb"
-"github.com/storm-trade/sdk-go/contracts/smartaccount"
-"github.com/storm-trade/sdk-go/contracts/hw"
 )
 
 // Market Order - execute immediately at market price
@@ -262,8 +263,11 @@ Amount:    tlb.MustFromTON("25"), // margin to remove
 ```go
 import (
 "crypto/ed25519"
-"github.com/storm-trade/sdk-go/contracts/smartaccount"
+"encoding/base64"
+"fmt"
+"time"
 "github.com/storm-trade/sdk-go/contracts/hw"
+"github.com/storm-trade/sdk-go/contracts/smartaccount"
 gotlb "github.com/xssnick/tonutils-go/tlb"
 )
 
@@ -328,6 +332,7 @@ Orders are sent to the Storm Trade sequencer via REST API:
 ```go
 import (
 "bytes"
+"encoding/base64"
 "encoding/json"
 "net/http"
 )
