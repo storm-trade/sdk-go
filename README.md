@@ -15,6 +15,41 @@ go get github.com/storm-trade/sdk-go
 - Position data parsing
 - TLB serialization for TON blockchain
 
+## Contract Addresses
+
+### Factory (Smart Account deployer)
+
+| Network     | Address                                            |
+|-------------|----------------------------------------------------|
+| **Mainnet** | `EQA34l2ywiFdu_kb-HZMqLngFVDjw0DJZHo1aBokOap8xVMU` |
+| **Testnet** | `kQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_Qvr` |
+
+### Markets & Vaults
+
+Market (vAMM) and Vault addresses can be fetched dynamically
+using [config-discovery-client](https://github.com/storm-trade/config-discovery-client):
+
+```go
+import "github.com/storm-trade/config-discovery-client/client"
+
+// Initialize config client
+cfg := client.NewClient(client.Options{
+// Mainnet
+ConfigURL: "https://api5.storm.tg/api/config",
+// Testnet: "https://api.stage.stormtrade.dev/api/config"
+})
+
+// Get all markets
+markets, err := cfg.GetMarkets()
+for _, m := range markets {
+fmt.Printf("Market: %s, vAMM: %s\n", m.Name, m.VammAddress)
+}
+
+// Get vault address
+vault, err := cfg.GetVault()
+fmt.Printf("Vault: %s\n", vault.Address)
+```
+
 ## Quick Start
 
 ### Initialize Client
@@ -316,10 +351,10 @@ Signature:    base64.StdEncoding.EncodeToString(signedMessage.Signature),
 
 body, _ := json.Marshal(req)
 
-// Mainnet: https://api.storm.tg/v1
-// Testnet: https://api-testnet.storm.tg/v1
+// Mainnet: https://api5.storm.tg/instant-trading
+// Testnet: https://api.stage.stormtrade.dev/instant-trading
 resp, err := http.Post(
-"https://api.storm.tg/v1/order/place",
+"https://api5.storm.tg/instant-trading/order/place",
 "application/json",
 bytes.NewReader(body),
 )
@@ -371,16 +406,21 @@ maxId := hw.MaxQueryId // 1023 * 8192 = 8,380,416
 
 ## API Endpoints
 
-| Endpoint                              | Method | Description          |
-|---------------------------------------|--------|----------------------|
-| `/v1/order/place`                     | POST   | Place a new order    |
-| `/v1/order/cancel`                    | POST   | Cancel an order      |
-| `/v1/status`                          | GET    | Get sequencer status |
-| `/v1/smartaccount/{address}/state`    | GET    | Get account state    |
-| `/v1/smartaccount/{address}/balance`  | GET    | Get account balance  |
-| `/v1/smartaccount/{address}/query_id` | GET    | Get next query ID    |
-| `/v1/orderbook/orders`                | GET    | Get orderbook orders |
-| `/v1/intent/{hash}`                   | GET    | Get intent by hash   |
+Base URLs:
+
+- **Mainnet:** `https://api5.storm.tg/instant-trading`
+- **Testnet:** `https://api.stage.stormtrade.dev/instant-trading`
+
+| Endpoint                           | Method | Description          |
+|------------------------------------|--------|----------------------|
+| `/order/place`                     | POST   | Place a new order    |
+| `/order/cancel`                    | POST   | Cancel an order      |
+| `/status`                          | GET    | Get sequencer status |
+| `/smartaccount/{address}/state`    | GET    | Get account state    |
+| `/smartaccount/{address}/balance`  | GET    | Get account balance  |
+| `/smartaccount/{address}/query_id` | GET    | Get next query ID    |
+| `/orderbook/orders`                | GET    | Get orderbook orders |
+| `/intent/{hash}`                   | GET    | Get intent by hash   |
 
 ## Constants
 
@@ -433,7 +473,7 @@ See the [examples](./examples) directory for complete working examples.
 
 - [Storm Trade](https://storm.tg)
 - [Documentation](https://docs.storm.tg)
-- [API Reference](https://api.storm.tg/docs)
+- [API Reference](https://api5.storm.tg/instant-trading/swagger/index.html)
 - [Telegram](https://t.me/stormtrade)
 
 ## License
