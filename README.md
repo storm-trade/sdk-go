@@ -34,15 +34,15 @@ import "github.com/storm-trade/config-discovery-client/client"
 
 // Initialize config client
 cfg := client.NewClient(client.Options{
-// Mainnet
-ConfigURL: "https://api5.storm.tg/api/config",
-// Testnet: "https://api.stage.stormtrade.dev/api/config"
+	// Mainnet
+	ConfigURL: "https://api5.storm.tg/api/config",
+	// Testnet: "https://api.stage.stormtrade.dev/api/config"
 })
 
 // Get all markets
 markets, err := cfg.GetMarkets()
 for _, m := range markets {
-fmt.Printf("Market: %s, vAMM: %s\n", m.Name, m.VammAddress)
+	fmt.Printf("Market: %s, vAMM: %s\n", m.Name, m.VammAddress)
 }
 
 // Get vault address
@@ -107,18 +107,18 @@ func main() {
 
 ```go
 import (
-"strings"
-"github.com/storm-trade/sdk-go/client/smartaccount"
-sa "github.com/storm-trade/sdk-go/contracts/smartaccount"
-"github.com/xssnick/tonutils-go/tlb"
-"github.com/xssnick/tonutils-go/ton/wallet"
+	"strings"
+	"github.com/storm-trade/sdk-go/client/smartaccount"
+	sa "github.com/storm-trade/sdk-go/contracts/smartaccount"
+	"github.com/xssnick/tonutils-go/tlb"
+	"github.com/xssnick/tonutils-go/ton/wallet"
 )
 
 // Create wallet from seed
 seed := strings.Split("your seed phrase here", " ")
 w, err := wallet.FromSeed(api, seed, wallet.HighloadV2R2)
 if err != nil {
-panic(err)
+	panic(err)
 }
 
 // Deposit 10 TON
@@ -128,12 +128,12 @@ amount := tlb.MustFromTON("10")
 pubKey := sa.PublicKey(yourEd25519PublicKey)
 
 tx, err := saClient.DepositNative(
-w, // wallet
-w.WalletAddress(), // owner
-vaultAddress,      // vault contract address
-amount,            // amount to deposit
-true,   // init (true for first deposit)
-pubKey, // optional public keys
+	w,                 // wallet
+	w.WalletAddress(), // owner
+	vaultAddress,      // vault contract address
+	amount,            // amount to deposit
+	true,              // init (true for first deposit)
+	pubKey,            // optional public keys
 )
 ```
 
@@ -141,13 +141,13 @@ pubKey, // optional public keys
 
 ```go
 tx, err := saClient.DepositJetton(
-w, // wallet
-w.WalletAddress(),   // owner
-vaultAddress,        // vault contract address
-jettonMasterAddress, // USDT master contract
-amount, // amount to deposit
-true,   // init
-pubKey, // optional public keys
+	w,                   // wallet
+	w.WalletAddress(),   // owner
+	vaultAddress,        // vault contract address
+	jettonMasterAddress, // USDT master contract
+	amount,              // amount to deposit
+	true,                // init
+	pubKey,              // optional public keys
 )
 ```
 
@@ -177,84 +177,84 @@ tx, err := saClient.RemoveAllExceptCurrentPublicKey(w, currentPubKey)
 
 ```go
 import (
-"time"
-"github.com/storm-trade/sdk-go/tlb"
+	"time"
+	"github.com/storm-trade/sdk-go/tlb"
 )
 
 // Market Order - execute immediately at market price
 marketOrder := tlb.Order{
-Value: tlb.MarketOrder{
-Payload: tlb.LimitOrderData{
-Expiration:       uint32(time.Now().Add(5 * time.Minute).Unix()),
-Direction:        uint(tlb.ContractDirectionLong), // 0 = long, 1 = short
-Amount:           tlb.MustFromTON("100"), // position size in USD
-Leverage:         3_000_000_000,          // 3x leverage (9 decimals)
-LimitPrice:       tlb.MustFromTON("0"), // 0 for market
-StopPrice:        tlb.MustFromTON("0"),
-StopTriggerPrice: tlb.MustFromTON("0"),
-TakeTriggerPrice: tlb.MustFromTON("0"),
-},
-},
+	Value: tlb.MarketOrder{
+		Payload: tlb.LimitOrderData{
+			Expiration:       uint32(time.Now().Add(5 * time.Minute).Unix()),
+			Direction:        uint(tlb.ContractDirectionLong), // 0 = long, 1 = short
+			Amount:           tlb.MustFromTON("100"),          // position size in USD
+			Leverage:         3_000_000_000,                   // 3x leverage (9 decimals)
+			LimitPrice:       tlb.MustFromTON("0"),            // 0 for market
+			StopPrice:        tlb.MustFromTON("0"),
+			StopTriggerPrice: tlb.MustFromTON("0"),
+			TakeTriggerPrice: tlb.MustFromTON("0"),
+		},
+	},
 }
 
 // Limit Order - execute when price reaches limit
 limitOrder := tlb.Order{
-Value: tlb.LimitOrder{
-Payload: tlb.LimitOrderData{
-Expiration:       uint32(time.Now().Add(24 * time.Hour).Unix()),
-Direction:        uint(tlb.ContractDirectionLong),
-Amount:           tlb.MustFromTON("100"),
-Leverage:         5_000_000_000, // 5x
-LimitPrice:       tlb.MustFromTON("95000"), // entry price
-StopPrice:        tlb.MustFromTON("0"),
-StopTriggerPrice: tlb.MustFromTON("0"),
-TakeTriggerPrice: tlb.MustFromTON("0"),
-},
-},
+	Value: tlb.LimitOrder{
+		Payload: tlb.LimitOrderData{
+			Expiration:       uint32(time.Now().Add(24 * time.Hour).Unix()),
+			Direction:        uint(tlb.ContractDirectionLong),
+			Amount:           tlb.MustFromTON("100"),
+			Leverage:         5_000_000_000,           // 5x
+			LimitPrice:       tlb.MustFromTON("95000"), // entry price
+			StopPrice:        tlb.MustFromTON("0"),
+			StopTriggerPrice: tlb.MustFromTON("0"),
+			TakeTriggerPrice: tlb.MustFromTON("0"),
+		},
+	},
 }
 
 // Stop-Loss Order
 stopLossOrder := tlb.Order{
-Value: tlb.StopOrder{
-Payload: tlb.StopOrderData{
-Expiration:   uint32(time.Now().Add(7 * 24 * time.Hour).Unix()),
-Direction:    uint(tlb.ContractDirectionLong),
-Amount:       tlb.MustFromTON("100"), // close amount
-TriggerPrice: tlb.MustFromTON("90000"), // trigger price
-},
-},
+	Value: tlb.StopOrder{
+		Payload: tlb.StopOrderData{
+			Expiration:   uint32(time.Now().Add(7 * 24 * time.Hour).Unix()),
+			Direction:    uint(tlb.ContractDirectionLong),
+			Amount:       tlb.MustFromTON("100"),   // close amount
+			TriggerPrice: tlb.MustFromTON("90000"), // trigger price
+		},
+	},
 }
 
 // Take-Profit Order
 takeProfitOrder := tlb.Order{
-Value: tlb.TakeOrder{
-Payload: tlb.StopOrderData{
-Expiration:   uint32(time.Now().Add(7 * 24 * time.Hour).Unix()),
-Direction:    uint(tlb.ContractDirectionLong),
-Amount:       tlb.MustFromTON("100"),
-TriggerPrice: tlb.MustFromTON("110000"),
-},
-},
+	Value: tlb.TakeOrder{
+		Payload: tlb.StopOrderData{
+			Expiration:   uint32(time.Now().Add(7 * 24 * time.Hour).Unix()),
+			Direction:    uint(tlb.ContractDirectionLong),
+			Amount:       tlb.MustFromTON("100"),
+			TriggerPrice: tlb.MustFromTON("110000"),
+		},
+	},
 }
 
 // Add Margin
 addMarginOrder := tlb.Order{
-Value: tlb.AddMarginOrder{
-Payload: tlb.MarginOrderData{
-Direction: uint(tlb.ContractDirectionLong),
-Amount:    tlb.MustFromTON("50"), // margin to add
-},
-},
+	Value: tlb.AddMarginOrder{
+		Payload: tlb.MarginOrderData{
+			Direction: uint(tlb.ContractDirectionLong),
+			Amount:    tlb.MustFromTON("50"), // margin to add
+		},
+	},
 }
 
 // Remove Margin
 removeMarginOrder := tlb.Order{
-Value: tlb.RemoveMarginOrder{
-Payload: tlb.MarginOrderData{
-Direction: uint(tlb.ContractDirectionLong),
-Amount:    tlb.MustFromTON("25"), // margin to remove
-},
-},
+	Value: tlb.RemoveMarginOrder{
+		Payload: tlb.MarginOrderData{
+			Direction: uint(tlb.ContractDirectionLong),
+			Amount:    tlb.MustFromTON("25"), // margin to remove
+		},
+	},
 }
 ```
 
@@ -262,33 +262,33 @@ Amount:    tlb.MustFromTON("25"), // margin to remove
 
 ```go
 import (
-"crypto/ed25519"
-"encoding/base64"
-"fmt"
-"time"
-"github.com/storm-trade/sdk-go/contracts/hw"
-"github.com/storm-trade/sdk-go/contracts/smartaccount"
-gotlb "github.com/xssnick/tonutils-go/tlb"
+	"crypto/ed25519"
+	"encoding/base64"
+	"fmt"
+	"time"
+	"github.com/storm-trade/sdk-go/contracts/hw"
+	"github.com/storm-trade/sdk-go/contracts/smartaccount"
+	gotlb "github.com/xssnick/tonutils-go/tlb"
 )
 
 // Create UserIntent
 intent := &smartaccount.UserIntent{
-QueryId:          hw.FromSeqno(nextQueryId), // get from sequencer API
-CreatedAt:        uint64(time.Now().Unix()),
-ReferenceQueryId: nil, // for linked orders
-PublicKey:        publicKeyBytes, // 32 bytes
-Intent: &smartaccount.UserIntentPayload{
-VAmm:         vammAddress, // market contract
-SmartAccount: saAddress,
-Order:        &marketOrder,
-},
+	QueryId:          hw.FromSeqno(nextQueryId), // get from sequencer API
+	CreatedAt:        uint64(time.Now().Unix()),
+	ReferenceQueryId: nil,            // for linked orders
+	PublicKey:        publicKeyBytes, // 32 bytes
+	Intent: &smartaccount.UserIntentPayload{
+		VAmm:         vammAddress, // market contract
+		SmartAccount: saAddress,
+		Order:        &marketOrder,
+	},
 }
 
 // Sign the intent
 privateKey := ed25519.PrivateKey(yourPrivateKeyBytes)
 signedMessage, err := smartaccount.SignMessage(intent, privateKey)
 if err != nil {
-panic(err)
+	panic(err)
 }
 
 // Get intent hash
@@ -298,7 +298,7 @@ fmt.Println("Intent hash:", hash)
 // Serialize to cell for sending
 cell, err := gotlb.ToCell(signedMessage)
 if err != nil {
-panic(err)
+	panic(err)
 }
 
 // Base64 encode for API
@@ -310,8 +310,8 @@ msgBase64 := base64.StdEncoding.EncodeToString(cell.ToBOC())
 ```go
 // Create cancel message
 cancelMsg := &smartaccount.CancelMessage{
-SmartAccountAddress: saAddress,
-OrderId:             orderHashBytes, // 32 bytes - hash of the order to cancel
+	SmartAccountAddress: saAddress,
+	OrderId:             orderHashBytes, // 32 bytes - hash of the order to cancel
 }
 
 // Sign it
@@ -319,9 +319,9 @@ cancelCell, _ := gotlb.ToCell(cancelMsg)
 signature := ed25519.Sign(privateKey, cancelCell.Hash())
 
 signedCancel := &smartaccount.SignedCancelMessage{
-Message:   cancelMsg,
-PublicKey: publicKeyBytes,
-Signature: signature,
+	Message:   cancelMsg,
+	PublicKey: publicKeyBytes,
+	Signature: signature,
 }
 ```
 
@@ -331,40 +331,40 @@ Orders are sent to the Storm Trade sequencer via REST API:
 
 ```go
 import (
-"bytes"
-"encoding/base64"
-"encoding/json"
-"net/http"
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"net/http"
 )
 
 type PlaceOrderRequest struct {
-SmartAccount string `json:"sa"`
-Message      string `json:"message"` // base64 encoded signed intent
-PublicKey    string `json:"public_key"` // base64 encoded public key
-Signature    string `json:"signature"`  // base64 encoded signature
+	SmartAccount string `json:"sa"`
+	Message      string `json:"message"`    // base64 encoded signed intent
+	PublicKey    string `json:"public_key"` // base64 encoded public key
+	Signature    string `json:"signature"`  // base64 encoded signature
 }
 
 func placeOrder(signedMessage *smartaccount.SignedMessage) error {
-cell, _ := gotlb.ToCell(signedMessage.Message)
+	cell, _ := gotlb.ToCell(signedMessage.Message)
 
-req := PlaceOrderRequest{
-SmartAccount: saAddress.String(),
-Message:      base64.StdEncoding.EncodeToString(cell.ToBOC()),
-PublicKey:    base64.StdEncoding.EncodeToString(signedMessage.PublicKey[:]),
-Signature:    base64.StdEncoding.EncodeToString(signedMessage.Signature),
-}
+	req := PlaceOrderRequest{
+		SmartAccount: saAddress.String(),
+		Message:      base64.StdEncoding.EncodeToString(cell.ToBOC()),
+		PublicKey:    base64.StdEncoding.EncodeToString(signedMessage.PublicKey[:]),
+		Signature:    base64.StdEncoding.EncodeToString(signedMessage.Signature),
+	}
 
-body, _ := json.Marshal(req)
+	body, _ := json.Marshal(req)
 
-// Mainnet: https://api5.storm.tg/instant-trading
-// Testnet: https://api.stage.stormtrade.dev/instant-trading
-resp, err := http.Post(
-"https://api5.storm.tg/instant-trading/order/place",
-"application/json",
-bytes.NewReader(body),
-)
+	// Mainnet: https://api5.storm.tg/instant-trading
+	// Testnet: https://api.stage.stormtrade.dev/instant-trading
+	resp, err := http.Post(
+		"https://api5.storm.tg/instant-trading/order/place",
+		"application/json",
+		bytes.NewReader(body),
+	)
 
-return err
+	return err
 }
 ```
 
@@ -374,15 +374,15 @@ return err
 
 ```go
 type PositionState struct {
-Size                         *big.Int // position size (9 decimals)
-Direction                    uint8    // 0 = long, 1 = short
-Margin                       *tlb.Coins // margin amount
-OpenNotional                 *tlb.Coins // open notional value
-LastUpdatedCumulativePremium int64      // funding rate accumulator
-Fee                          uint64     // trading fee (basis points)
-Discount                     uint64     // fee discount
-Rebate                       uint64 // referral rebate
-LastUpdatedTimestamp         uint64 // last update time
+	Size                         *big.Int   // position size (9 decimals)
+	Direction                    uint8      // 0 = long, 1 = short
+	Margin                       *tlb.Coins // margin amount
+	OpenNotional                 *tlb.Coins // open notional value
+	LastUpdatedCumulativePremium int64      // funding rate accumulator
+	Fee                          uint64     // trading fee (basis points)
+	Discount                     uint64     // fee discount
+	Rebate                       uint64     // referral rebate
+	LastUpdatedTimestamp         uint64     // last update time
 }
 
 // Check position direction
@@ -442,15 +442,15 @@ Leverage is specified with 9 decimal places:
 ### Direction
 
 ```go
-tlb.ContractDirectionLong = 0 // Long position
+tlb.ContractDirectionLong  = 0 // Long position
 tlb.ContractDirectionShort = 1 // Short position
 ```
 
 ### Order Types
 
 ```go
-tlb.MarketOrderType // Execute at market price
-tlb.LimitOrderType  // Execute at limit price
+tlb.MarketOrderType       // Execute at market price
+tlb.LimitOrderType        // Execute at limit price
 tlb.StopOrderType         // Stop-loss order
 tlb.TakeOrderType         // Take-profit order
 tlb.AddMarginOrderType    // Add margin to position
