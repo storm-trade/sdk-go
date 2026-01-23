@@ -479,7 +479,7 @@ See the [examples](./examples) directory for complete working examples.
 - [Storm Trade](https://storm.tg)
 - [Documentation](https://docs.storm.tg)
 - [API Reference](https://api5.storm.tg/instant-trading/swagger/index.html)
-- [Telegram](https://t.me/stormtrade)
+- [Telegram](https://t.me/StormTradeBot)
 
 ## License
 
