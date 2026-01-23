@@ -100,7 +100,7 @@ type PositionState struct {
 	Direction                    uint8      `tlb:"## 1" json:"direction"`
 	Margin                       *tlb.Coins `tlb:"." json:"margin"`
 	OpenNotional                 *tlb.Coins `tlb:"." json:"open_notional"`
-	LastUpdatedCumulativePremium uint64     `tlb:"## 64" json:"last_updated_cumulative_premium"`
+	LastUpdatedCumulativePremium int64      `tlb:"## 64" json:"last_updated_cumulative_premium"`
 	Fee                          uint64     `tlb:"## 32" json:"fee"`
 	Discount                     uint64     `tlb:"## 32" json:"discount"`
 	Rebate                       uint64     `tlb:"## 32" json:"rebate"`

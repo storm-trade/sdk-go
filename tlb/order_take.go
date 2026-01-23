@@ -14,3 +14,7 @@ func (s TakeOrder) AsStopOrder() *StopOrderData {
 func (s TakeOrder) AsLimitOrder() *LimitOrderData {
 	return nil
 }
+
+func (s TakeOrder) AsMarginOrder() *MarginOrderData {
+	return nil
+}

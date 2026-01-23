@@ -71,6 +71,7 @@ type StopOrderData struct {
 type AnyOrder interface {
 	AsStopOrder() *StopOrderData
 	AsLimitOrder() *LimitOrderData
+	AsMarginOrder() *MarginOrderData
 }
 
 type Order struct {
@@ -84,7 +85,7 @@ type OrderWithIndex struct {
 
 func (o *Order) MarshalJSON() ([]byte, error) {
 	switch ord := o.Value.(type) {
-	case TakeOrder, StopOrder, RemoveMarginOrder:
+	case TakeOrder, StopOrder:
 		limit := ord.AsStopOrder()
 
 		return json.Marshal(struct {
@@ -94,7 +95,7 @@ func (o *Order) MarshalJSON() ([]byte, error) {
 			StopOrderData: limit,
 			Type:          o.GetType().String(),
 		})
-	case LimitOrder, MarketOrder, AddMarginOrder:
+	case LimitOrder, MarketOrder:
 		limit := ord.AsLimitOrder()
 
 		return json.Marshal(struct {
@@ -103,6 +104,16 @@ func (o *Order) MarshalJSON() ([]byte, error) {
 		}{
 			LimitOrderData: limit,
 			Type:           o.GetType().String(),
+		})
+	case AddMarginOrder, RemoveMarginOrder:
+		margin := ord.AsMarginOrder()
+
+		return json.Marshal(struct {
+			*MarginOrderData
+			Type string `json:"type"`
+		}{
+			MarginOrderData: margin,
+			Type:            o.GetType().String(),
 		})
 	default:
 		panic("unexpected order type")
@@ -121,14 +132,14 @@ func (o *Order) UnmarshalJSON(value []byte) error {
 
 	switch str.Type {
 	case "addMargin":
-		var payload LimitOrderData
+		var payload MarginOrderData
 		if err := json.Unmarshal(value, &payload); err != nil {
 			return err
 		}
 
 		o.Value = AddMarginOrder{Payload: payload}
 	case "removeMargin":
-		var payload StopOrderData
+		var payload MarginOrderData
 		if err := json.Unmarshal(value, &payload); err != nil {
 			return err
 		}
@@ -193,10 +204,8 @@ func (o *Order) DirectionNum() uint {
 	switch payload := o.Value.(type) {
 	case StopOrder, TakeOrder:
 		return payload.AsStopOrder().Direction
-	case AddMarginOrder:
-		return payload.AsLimitOrder().Direction
-	case RemoveMarginOrder:
-		return payload.AsStopOrder().Direction
+	case AddMarginOrder, RemoveMarginOrder:
+		return payload.AsMarginOrder().Direction
 	case LimitOrder, MarketOrder:
 		return payload.AsLimitOrder().Direction
 	}
@@ -206,10 +215,12 @@ func (o *Order) DirectionNum() uint {
 
 func (o *Order) GetDirection() Direction {
 	switch payload := o.Value.(type) {
-	case StopOrder, TakeOrder, RemoveMarginOrder:
+	case StopOrder, TakeOrder:
 		return DirectionFromInt(int(payload.AsStopOrder().Direction))
-	case LimitOrder, MarketOrder, AddMarginOrder:
+	case LimitOrder, MarketOrder:
 		return DirectionFromInt(int(payload.AsLimitOrder().Direction))
+	case AddMarginOrder, RemoveMarginOrder:
+		return DirectionFromInt(int(payload.AsMarginOrder().Direction))
 	}
 
 	panic("unexpected order type")

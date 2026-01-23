@@ -17,6 +17,10 @@ func (s MarketOrder) AsLimitOrder() *LimitOrderData {
 	return &s.Payload
 }
 
+func (s MarketOrder) AsMarginOrder() *MarginOrderData {
+	return nil
+}
+
 func IsMarketOrder(order Order) bool {
 	if order.GetType() == MarketOrderType {
 		return true
