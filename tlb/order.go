@@ -2,7 +2,6 @@ package tlb
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -17,6 +16,7 @@ func init() {
 	tlb.Register(TakeOrder{})
 	tlb.Register(AddMarginOrder{})    // const int order_type::add_margin = 4;
 	tlb.Register(RemoveMarginOrder{}) // const int order_type::remove_margin = 5;
+	tlb.Register(OrderRequest{})
 }
 
 type OrderType int
@@ -28,7 +28,8 @@ const (
 	MarketOrderType
 	AddMarginOrderType
 	RemoveMarginOrderType
-	UnknownOrderType = -1
+	OrderRequestOrderType OrderType = 8
+	UnknownOrderType                = -1
 )
 
 func (t OrderType) String() string {
@@ -45,6 +46,8 @@ func (t OrderType) String() string {
 		return "addMargin"
 	case RemoveMarginOrderType:
 		return "removeMargin"
+	case OrderRequestOrderType:
+		return "order_request"
 	default:
 		panic("unknown order type")
 	}
@@ -75,7 +78,7 @@ type AnyOrder interface {
 }
 
 type Order struct {
-	Value AnyOrder `tlb:"[StopOrder,TakeOrder,LimitOrder,MarketOrder,AddMarginOrder,RemoveMarginOrder]" json:"order"`
+	Value AnyOrder `tlb:"[StopOrder,TakeOrder,LimitOrder,MarketOrder,AddMarginOrder,RemoveMarginOrder,OrderRequest]" json:"order"`
 }
 
 type OrderWithIndex struct {
@@ -114,6 +117,14 @@ func (o *Order) MarshalJSON() ([]byte, error) {
 		}{
 			MarginOrderData: margin,
 			Type:            o.GetType().String(),
+		})
+	case OrderRequest:
+		return json.Marshal(struct {
+			*OrderRequest
+			Type string `json:"type"`
+		}{
+			OrderRequest: &ord,
+			Type:         o.GetType().String(),
 		})
 	default:
 		panic("unexpected order type")
@@ -161,24 +172,23 @@ func (o *Order) UnmarshalJSON(value []byte) error {
 		o.Value = LimitOrder{Payload: payload}
 	case "stopLoss":
 		var payload StopOrderData
-
 		if err := json.Unmarshal(value, &payload); err != nil {
-
-			fmt.Println("err")
 			return err
 		}
-
 		o.Value = StopOrder{Payload: payload}
 	case "takeProfit":
 		var payload StopOrderData
-
 		if err := json.Unmarshal(value, &payload); err != nil {
-
-			fmt.Println("err")
+			return err
+		}
+		o.Value = TakeOrder{Payload: payload}
+	case "order_request":
+		var payload OrderRequest
+		if err := json.Unmarshal(value, &payload); err != nil {
 			return err
 		}
 
-		o.Value = TakeOrder{Payload: payload}
+		o.Value = payload
 	default:
 		panic("unexpected order type")
 	}
@@ -208,6 +218,8 @@ func (o *Order) DirectionNum() uint {
 		return payload.AsMarginOrder().Direction
 	case LimitOrder, MarketOrder:
 		return payload.AsLimitOrder().Direction
+	case OrderRequest:
+		return payload.GetDirection()
 	}
 
 	panic("unexpected order type")
@@ -221,6 +233,8 @@ func (o *Order) GetDirection() Direction {
 		return DirectionFromInt(int(payload.AsLimitOrder().Direction))
 	case AddMarginOrder, RemoveMarginOrder:
 		return DirectionFromInt(int(payload.AsMarginOrder().Direction))
+	case OrderRequest:
+		return DirectionFromInt(int(payload.GetDirection()))
 	}
 
 	panic("unexpected order type")
@@ -308,6 +322,8 @@ func (o *Order) GetType() OrderType {
 		return AddMarginOrderType
 	case RemoveMarginOrder, *RemoveMarginOrder:
 		return RemoveMarginOrderType
+	case OrderRequest, *OrderRequest:
+		return OrderRequestOrderType
 	}
 
 	return UnknownOrderType
