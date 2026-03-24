@@ -68,7 +68,7 @@ type OracleData struct {
 	OracleLastTimestamp  uint32     `tlb:"## 32" json:"oracle_last_timestamp"`
 	OracleMaxDeviation   *tlb.Coins `tlb:"." json:"oracle_max_deviation"`
 	OracleValidityPeriod uint32     `tlb:"## 32" json:"oracle_validity_period"`
-	OracleAssetID        uint32     `tlb:"## 16" json:"oracle_asset_id"`
+	OracleAssetID        uint16     `tlb:"## 16" json:"oracle_asset_id"`
 }
 
 type AmmData struct {

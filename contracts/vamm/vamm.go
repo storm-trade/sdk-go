@@ -12,7 +12,7 @@ type OracleData struct {
 	OracleLastTimestamp  uint32     `tlb:"## 32" json:"oracle_last_timestamp"`
 	OracleMaxDeviation   *tlb.Coins `tlb:"." json:"oracle_max_deviation"`
 	OracleValidityPeriod uint32     `tlb:"## 32" json:"oracle_validity_period"`
-	OracleAssetID        uint32     `tlb:"## 16" json:"oracle_asset_id"`
+	OracleAssetID        uint16     `tlb:"## 16" json:"oracle_asset_id"`
 }
 
 type AmmData struct {
@@ -46,7 +46,7 @@ type AmmState struct {
 	NextFundingBlockTimestamp            uint32     `tlb:"## 32" json:"next_funding_block_timestamp"`
 }
 
-type commonExchangeSettings struct {
+type CommonExchangeSettings struct {
 	Fee                           uint32           `tlb:"## 32" json:"fee"`
 	RolloverFee                   uint32           `tlb:"## 32" json:"rollover_fee"`
 	FundingPeriod                 uint32           `tlb:"## 32" json:"funding_period"`
@@ -67,7 +67,7 @@ type commonExchangeSettings struct {
 	WhitelistAddresses            *cell.Dictionary `tlb:"dict 4" json:"whitelist_addresses"`
 }
 
-type fundingSettings struct {
+type FundingSettings struct {
 	LowFundingFnA   int64 `tlb:"## 64" json:"low_funding_fn_a"`
 	LowFundingFnB   int64 `tlb:"## 64" json:"low_funding_fn_b"`
 	HighFundingFnA  int64 `tlb:"## 64" json:"high_funding_fn_a"`
@@ -76,6 +76,6 @@ type fundingSettings struct {
 }
 
 type ExchangeSettings struct {
-	*commonExchangeSettings
-	*fundingSettings
+	*CommonExchangeSettings
+	*FundingSettings
 }

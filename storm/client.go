@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"github.com/storm-trade/sdk-go/sequencer"
+	"github.com/xssnick/tonutils-go/address"
+	"github.com/xssnick/tonutils-go/ton"
 )
 
 type Network int
@@ -37,6 +39,14 @@ var networks = map[Network]networkConfig{
 
 func (c *Client) FactoryAddress() string {
 	return networks[c.network].factoryAddress
+}
+
+func (c *Client) TonAPI() ton.APIClientWrapped {
+	return c.defaults.tonAPI
+}
+
+func (c *Client) SmartAccount() *address.Address {
+	return c.defaults.smartAccount
 }
 
 type Client struct {
