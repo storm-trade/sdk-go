@@ -57,6 +57,18 @@ func main() {
 		cmdCancel(ctx)
 	case "withdraw":
 		cmdWithdraw(ctx)
+	case "close":
+		cmdClose(ctx)
+	case "close-all":
+		cmdCloseAll(ctx)
+	case "stop-loss":
+		cmdStopLoss(ctx)
+	case "take-profit":
+		cmdTakeProfit(ctx)
+	case "add-margin":
+		cmdAddMargin(ctx)
+	case "remove-margin":
+		cmdRemoveMargin(ctx)
 	case "info":
 		cmdInfo(ctx)
 	default:
@@ -77,22 +89,44 @@ Commands:
   positions   Show open positions
   deposit     Deposit to smart account (e.g. deposit TON 1, deposit USDT 10)
   withdraw    Withdraw from smart account (e.g. withdraw TON 1)
-  order       Place an order (e.g. order market BTC USDT long 1000 3)
+  order       Place an order (order market BTC USDT long 1000 3)
+  close       Close position by size (close BTC USDT long 0.001)
+  close-all   Close entire position (close-all BTC USDT long)
+  stop-loss   Set stop loss (stop-loss BTC USDT long 0.001 60000)
+  take-profit Set take profit (take-profit BTC USDT long 0.001 80000)
+  add-margin  Add margin (add-margin BTC USDT long 500)
+  remove-margin Remove margin (remove-margin BTC USDT long 500)
   cancel      Cancel order by hash
-  info        Show market & vault info (e.g. info BTC USDT)
+  info        Show market & vault info (info BTC USDT)
 
 Environment:
-  STORM_SEED          Wallet seed phrase
-  STORM_PRIVATE_KEY   Hex-encoded ED25519 private key`)
+  STORM_SEED            Wallet seed phrase
+  STORM_PRIVATE_KEY     Hex-encoded ED25519 private key
+  STORM_NETWORK         testnet (default) or mainnet
+  STORM_WALLET_VERSION  v3r2, v4r2 (default), v5r1
+  STORM_SUBWALLET_ID    Custom subwallet ID (optional)
+  STORM_GLOBAL_ID       Override network global ID for v5r1 (optional)`)
+}
+
+func parseNetwork() storm.Network {
+	switch os.Getenv("STORM_NETWORK") {
+	case "", "testnet":
+		return storm.Testnet
+	case "mainnet":
+		return storm.Mainnet
+	default:
+		log.Fatalf("unknown STORM_NETWORK %q, use testnet or mainnet", os.Getenv("STORM_NETWORK"))
+		return 0
+	}
 }
 
 func mustClient(ctx context.Context) *storm.Client {
-	network := storm.Testnet
+	network := parseNetwork()
 	factoryAddr := storm.NewClient(network).FactoryAddress()
 	var opts []storm.Option
 
 	if seed := os.Getenv("STORM_SEED"); seed != "" {
-		api, w := mustTON(ctx, seed)
+		api, w := mustTON(ctx, seed, network)
 		opts = append(opts, storm.WithTONApi(api), storm.WithWallet(w))
 
 		factory := smartaccount.NewFactory(api, address.MustParseAddr(factoryAddr))
@@ -101,6 +135,12 @@ func mustClient(ctx context.Context) *storm.Client {
 			log.Fatalf("get smart account address: %v", err)
 		}
 		opts = append(opts, storm.WithSmartAccount(saAddr))
+
+		walletVer := os.Getenv("STORM_WALLET_VERSION")
+		if walletVer == "" {
+			walletVer = "v4r2"
+		}
+		fmt.Printf("Network: %s | Wallet: %s (subwallet=%d) | Address: %s\n", os.Getenv("STORM_NETWORK"), walletVer, w.GetSubwalletID(), w.WalletAddress())
 		fmt.Printf("Smart Account: %s\n", saAddr.String())
 	}
 
@@ -117,20 +157,70 @@ func mustClient(ctx context.Context) *storm.Client {
 	return storm.NewClient(network, opts...)
 }
 
-func mustTON(ctx context.Context, seed string) (ton.APIClientWrapped, *wallet.Wallet) {
+var tonConfigURLs = map[storm.Network]string{
+	storm.Testnet: "https://ton-blockchain.github.io/testnet-global.config.json",
+	storm.Mainnet: "https://ton-blockchain.github.io/global.config.json",
+}
+
+var networkGlobalIDs = map[storm.Network]int32{
+	storm.Testnet: wallet.TestnetGlobalID,
+	storm.Mainnet: wallet.MainnetGlobalID,
+}
+
+func mustTON(ctx context.Context, seed string, network storm.Network) (ton.APIClientWrapped, *wallet.Wallet) {
 	pool := liteclient.NewConnectionPool()
-	if err := pool.AddConnectionsFromConfigUrl(ctx, "https://ton-blockchain.github.io/testnet-global.config.json"); err != nil {
+	if err := pool.AddConnectionsFromConfigUrl(ctx, tonConfigURLs[network]); err != nil {
 		log.Fatalf("connect to TON: %v", err)
 	}
 
 	api := ton.NewAPIClient(pool, ton.ProofCheckPolicyUnsafe).WithRetry(10)
 	words := strings.Split(seed, " ")
-	w, err := wallet.FromSeed(api, words, wallet.V4R2)
+
+	ver := walletVersion(network)
+	w, err := wallet.FromSeed(api, words, ver)
 	if err != nil {
 		log.Fatalf("wallet from seed: %v", err)
 	}
 
+	if idStr := os.Getenv("STORM_SUBWALLET_ID"); idStr != "" {
+		id, err := strconv.ParseUint(idStr, 10, 32)
+		if err != nil {
+			log.Fatalf("invalid STORM_SUBWALLET_ID: %v", err)
+		}
+		w, err = w.GetSubwallet(uint32(id))
+		if err != nil {
+			log.Fatalf("get subwallet: %v", err)
+		}
+	}
+
 	return api, w
+}
+
+func walletVersion(network storm.Network) wallet.VersionConfig {
+	switch os.Getenv("STORM_WALLET_VERSION") {
+	case "", "v4r2":
+		return wallet.V4R2
+	case "v3r2":
+		return wallet.V3R2
+	case "v4r1":
+		return wallet.V4R1
+	case "v5r1":
+		globalID := networkGlobalIDs[network]
+		if idStr := os.Getenv("STORM_GLOBAL_ID"); idStr != "" {
+			id, err := strconv.ParseInt(idStr, 10, 32)
+			if err != nil {
+				log.Fatalf("invalid STORM_GLOBAL_ID: %v", err)
+			}
+			globalID = int32(id)
+		}
+		return wallet.ConfigV5R1Final{
+			NetworkGlobalID: globalID,
+			Workchain:       0,
+		}
+	default:
+		log.Fatalf("unknown STORM_WALLET_VERSION %q, use v3r2, v4r2, or v5r1", os.Getenv("STORM_WALLET_VERSION"))
+		return nil
+	}
 }
 
 func cmdKeygen() {
@@ -158,7 +248,7 @@ func cmdAddKey(ctx context.Context) {
 }
 
 func cmdMarkets(ctx context.Context) {
-	client := storm.NewClient(storm.Testnet)
+	client := storm.NewClient(parseNetwork())
 	markets, err := client.Markets()
 	if err != nil {
 		log.Fatalf("fetch markets: %v", err)
@@ -200,7 +290,7 @@ func cmdPositions(ctx context.Context) {
 
 func cmdDeposit(ctx context.Context) {
 	if len(os.Args) < 4 {
-		log.Fatal("usage: deposit <asset> <amount>")
+		log.Fatal("usage: deposit <asset> <amount> [--init]")
 	}
 
 	asset := os.Args[2]
@@ -212,7 +302,20 @@ func cmdDeposit(ctx context.Context) {
 	}
 
 	amount := tlb.MustFromDecimal(os.Args[3], a.Decimals)
-	if err := client.Deposit(ctx, asset, &amount); err != nil {
+
+	var opts []storm.Option
+	for _, arg := range os.Args[4:] {
+		if arg == "--init" {
+			privKey := client.Signer()
+			if privKey == nil {
+				log.Fatal("--init requires STORM_PRIVATE_KEY to register public key")
+			}
+			pubKey := privKey.Public().(ed25519.PublicKey)
+			opts = append(opts, storm.WithInit(), storm.WithPublicKey(pubKey))
+		}
+	}
+
+	if err := client.Deposit(ctx, asset, &amount, opts...); err != nil {
 		log.Fatalf("deposit: %v", err)
 	}
 	fmt.Printf("Deposited %s %s\n", os.Args[3], asset)
@@ -250,15 +353,7 @@ func cmdOrder(ctx context.Context) {
 	amountStr := os.Args[6]
 	leverageStr := os.Args[7]
 
-	var dir storm.Direction
-	switch dirStr {
-	case "long":
-		dir = storm.Long
-	case "short":
-		dir = storm.Short
-	default:
-		log.Fatalf("invalid direction %q, use long or short", dirStr)
-	}
+	dir := parseDirection(dirStr)
 
 	leverage, err := strconv.ParseUint(leverageStr, 10, 64)
 	if err != nil {
@@ -272,12 +367,7 @@ func cmdOrder(ctx context.Context) {
 		log.Fatalf("get market: %v", err)
 	}
 
-	asset, err := client.Asset(settlement)
-	if err != nil {
-		log.Fatalf("get asset: %v", err)
-	}
-
-	amount := tlb.MustFromDecimal(amountStr, asset.Decimals)
+	amount := tlb.MustFromDecimal(amountStr, 9)
 
 	var opts []storm.Option
 	var limitPrice, stopPrice string
@@ -322,14 +412,7 @@ func cmdOrder(ctx context.Context) {
 	if err != nil {
 		log.Fatalf("place order: %v", err)
 	}
-	fmt.Printf("Order placed: ok=%v\n", resp.Response.OK)
-	fmt.Printf("  hash=%x\n", resp.OrderHash)
-	if resp.StopLossHash != nil {
-		fmt.Printf("  stopLoss hash=%x\n", resp.StopLossHash)
-	}
-	if resp.TakeProfitHash != nil {
-		fmt.Printf("  takeProfit hash=%x\n", resp.TakeProfitHash)
-	}
+	printResult(resp)
 }
 
 func cmdCancel(ctx context.Context) {
@@ -347,6 +430,150 @@ func cmdCancel(ctx context.Context) {
 		log.Fatalf("cancel order: %v", err)
 	}
 	fmt.Printf("Order %s cancelled\n", os.Args[2])
+}
+
+func parseDirection(s string) storm.Direction {
+	switch s {
+	case "long":
+		return storm.Long
+	case "short":
+		return storm.Short
+	default:
+		log.Fatalf("invalid direction %q, use long or short", s)
+		return 0
+	}
+}
+
+func printResult(resp *storm.PlaceOrderResult) {
+	fmt.Printf("OK: %v\n", resp.Response.OK)
+	fmt.Printf("  hash=%x\n", resp.OrderHash)
+	if resp.StopLossHash != nil {
+		fmt.Printf("  stopLoss hash=%x\n", resp.StopLossHash)
+	}
+	if resp.TakeProfitHash != nil {
+		fmt.Printf("  takeProfit hash=%x\n", resp.TakeProfitHash)
+	}
+}
+
+func cmdCloseAll(ctx context.Context) {
+	if len(os.Args) < 5 {
+		log.Fatal("usage: close-all <asset> <settlement> <long|short>")
+	}
+
+	client := mustClient(ctx)
+	market, err := client.Market(os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatalf("get market: %v", err)
+	}
+	dir := parseDirection(os.Args[4])
+
+	resp, err := client.ClosePositionFull(ctx, market, dir)
+	if err != nil {
+		log.Fatalf("close position: %v", err)
+	}
+	printResult(resp)
+}
+
+func cmdClose(ctx context.Context) {
+	if len(os.Args) < 6 {
+		log.Fatal("usage: close <asset> <settlement> <long|short> <size>")
+	}
+
+	client := mustClient(ctx)
+	market, err := client.Market(os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatalf("get market: %v", err)
+	}
+	dir := parseDirection(os.Args[4])
+	size := tlb.MustFromDecimal(os.Args[5], 9)
+
+	resp, err := client.ClosePosition(ctx, market, dir, &size)
+	if err != nil {
+		log.Fatalf("close position: %v", err)
+	}
+	printResult(resp)
+}
+
+func cmdStopLoss(ctx context.Context) {
+	if len(os.Args) < 7 {
+		log.Fatal("usage: stop-loss <asset> <settlement> <long|short> <amount> <triggerPrice>")
+	}
+
+	client := mustClient(ctx)
+	market, err := client.Market(os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatalf("get market: %v", err)
+	}
+	dir := parseDirection(os.Args[4])
+	amount := tlb.MustFromDecimal(os.Args[5], 9)
+	trigger := tlb.MustFromTON(os.Args[6])
+
+	resp, err := client.PlaceStopLoss(ctx, market, dir, &amount, &trigger)
+	if err != nil {
+		log.Fatalf("place stop loss: %v", err)
+	}
+	printResult(resp)
+}
+
+func cmdTakeProfit(ctx context.Context) {
+	if len(os.Args) < 7 {
+		log.Fatal("usage: take-profit <asset> <settlement> <long|short> <amount> <triggerPrice>")
+	}
+
+	client := mustClient(ctx)
+	market, err := client.Market(os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatalf("get market: %v", err)
+	}
+	dir := parseDirection(os.Args[4])
+	amount := tlb.MustFromDecimal(os.Args[5], 9)
+	trigger := tlb.MustFromTON(os.Args[6])
+
+	resp, err := client.PlaceTakeProfit(ctx, market, dir, &amount, &trigger)
+	if err != nil {
+		log.Fatalf("place take profit: %v", err)
+	}
+	printResult(resp)
+}
+
+func cmdAddMargin(ctx context.Context) {
+	if len(os.Args) < 6 {
+		log.Fatal("usage: add-margin <asset> <settlement> <long|short> <amount>")
+	}
+
+	client := mustClient(ctx)
+	market, err := client.Market(os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatalf("get market: %v", err)
+	}
+	dir := parseDirection(os.Args[4])
+	amount := tlb.MustFromDecimal(os.Args[5], 9)
+
+	resp, err := client.AddMargin(ctx, market, dir, &amount)
+	if err != nil {
+		log.Fatalf("add margin: %v", err)
+	}
+	printResult(resp)
+}
+
+func cmdRemoveMargin(ctx context.Context) {
+	if len(os.Args) < 6 {
+		log.Fatal("usage: remove-margin <asset> <settlement> <long|short> <amount>")
+	}
+
+	client := mustClient(ctx)
+	market, err := client.Market(os.Args[2], os.Args[3])
+	if err != nil {
+		log.Fatalf("get market: %v", err)
+	}
+	dir := parseDirection(os.Args[4])
+	amount := tlb.MustFromDecimal(os.Args[5], 9)
+
+	resp, err := client.RemoveMargin(ctx, market, dir, &amount)
+	if err != nil {
+		log.Fatalf("remove margin: %v", err)
+	}
+	printResult(resp)
 }
 
 func cmdInfo(ctx context.Context) {

@@ -70,3 +70,23 @@ func (c *Client) GetGasUnits(ctx context.Context, address string) (uint64, error
 	}
 	return result.Amount, nil
 }
+
+func (c *Client) GetFinalizingBundles(ctx context.Context, address string) ([]Bundle, error) {
+	var result []Bundle
+	if err := c.transport.Do(ctx, http.MethodGet, smartAccountPath(address, "finalizing"), nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) GetSentBundles(ctx context.Context, address string) ([]Bundle, error) {
+	var result []Bundle
+	if err := c.transport.Do(ctx, http.MethodGet, smartAccountPath(address, "sent"), nil, &result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (c *Client) SyncPosition(ctx context.Context, req SyncPositionRequest) error {
+	return c.transport.Do(ctx, http.MethodPost, "/position/sync", req, nil)
+}

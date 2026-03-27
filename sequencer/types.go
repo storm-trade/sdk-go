@@ -113,6 +113,12 @@ type SettledAction struct {
 	PaymentMode uint8  `json:"payment_mode,omitempty"`
 }
 
+type SyncPositionRequest struct {
+	SmartAccount string `json:"smart_account"`
+	VAmm         string `json:"vamm"`
+	Direction    string `json:"direction"`
+}
+
 type CancelOrderRequest struct {
 	SmartAccount string `json:"sa"`
 	Message      string `json:"message"`

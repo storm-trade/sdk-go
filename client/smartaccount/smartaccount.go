@@ -16,7 +16,13 @@ import (
 )
 
 var (
-	MinGas = tlb.MustFromTON("0.35")
+	GasDepositNative     = tlb.MustFromTON("0.1")
+	GasDepositNativeInit = tlb.MustFromTON("0.45")
+	GasDepositJetton     = tlb.MustFromTON("0.15")
+	GasDepositJettonInit = tlb.MustFromTON("0.45")
+	GasWithdraw          = tlb.MustFromTON("0.08")
+	GasKeyOperation      = tlb.MustFromTON("0.05")
+	GasJettonTransfer    = tlb.MustFromTON("0.05")
 )
 
 type Client struct {
@@ -57,7 +63,11 @@ func (c *Client) DepositNative(from *wallet.Wallet, owner, vault *address.Addres
 	if err != nil {
 		return nil, err
 	}
-	tonAmount, err := amount.Add(&MinGas)
+	gas := GasDepositNative
+	if init {
+		gas = GasDepositNativeInit
+	}
+	tonAmount, err := amount.Add(&gas)
 	if err != nil {
 		return nil, err
 	}
@@ -76,12 +86,15 @@ func (c *Client) DepositJetton(from *wallet.Wallet, owner, vault, jettonMaster *
 	if err != nil {
 		return nil, err
 	}
-	transferPayload, err := jetton.BuildTransferPayload(vault, from.WalletAddress(), *amount, MinGas, payload, nil)
+	gas := GasDepositJetton
+	if init {
+		gas = GasDepositJettonInit
+	}
+	transferPayload, err := jetton.BuildTransferPayload(vault, from.WalletAddress(), *amount, gas, payload, nil)
 	if err != nil {
 		return nil, err
 	}
-	jettonTransfer := tlb.MustFromTON("0.05")
-	msg := wallet.SimpleMessage(jettonWallet.Address(), *MinGas.MustAdd(&jettonTransfer), transferPayload)
+	msg := wallet.SimpleMessage(jettonWallet.Address(), *gas.MustAdd(&GasJettonTransfer), transferPayload)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }
@@ -95,7 +108,7 @@ func (c *Client) AddPublicKey(from *wallet.Wallet, publicKey smartaccount.Public
 	if err != nil {
 		return nil, err
 	}
-	msg := wallet.SimpleMessage(c.addr, MinGas, payloadCell)
+	msg := wallet.SimpleMessage(c.addr, GasKeyOperation, payloadCell)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }
@@ -109,7 +122,7 @@ func (c *Client) RemovePublicKey(from *wallet.Wallet, publicKey smartaccount.Pub
 	if err != nil {
 		return nil, err
 	}
-	msg := wallet.SimpleMessage(c.addr, MinGas, payloadCell)
+	msg := wallet.SimpleMessage(c.addr, GasKeyOperation, payloadCell)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }
@@ -123,7 +136,7 @@ func (c *Client) RemoveAllExceptCurrentPublicKey(from *wallet.Wallet, publicKey 
 	if err != nil {
 		return nil, err
 	}
-	msg := wallet.SimpleMessage(c.addr, MinGas, payloadCell)
+	msg := wallet.SimpleMessage(c.addr, GasKeyOperation, payloadCell)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }
@@ -138,7 +151,7 @@ func (c *Client) Withdraw(from *wallet.Wallet, vault *address.Address, amount *t
 	if err != nil {
 		return nil, err
 	}
-	msg := wallet.SimpleMessage(c.addr, tlb.MustFromTON("0.1"), payloadCell)
+	msg := wallet.SimpleMessage(c.addr, GasWithdraw, payloadCell)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }

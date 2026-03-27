@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	sa "github.com/storm-trade/sdk-go/client/smartaccount"
 	"github.com/storm-trade/sdk-go/contracts/hw"
 	"github.com/storm-trade/sdk-go/contracts/smartaccount"
 	"github.com/storm-trade/sdk-go/sequencer"
@@ -110,6 +111,112 @@ func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *Market, dir Di
 				StopPrice:        stopPrice,
 				StopTriggerPrice: stopTrigger,
 				TakeTriggerPrice: takeTrigger,
+			},
+		},
+	}
+
+	return c.placeOrder(ctx, market, order, o)
+}
+
+func (c *Client) ClosePositionFull(ctx context.Context, market *Market, dir Direction, opts ...Option) (*PlaceOrderResult, error) {
+	o := c.resolveOptions(opts)
+	if o.tonAPI == nil {
+		return nil, fmt.Errorf("TON API required: use WithTONApi()")
+	}
+	if o.smartAccount == nil {
+		return nil, fmt.Errorf("smart account required: use WithSmartAccount()")
+	}
+
+	saClient := sa.NewClient(o.tonAPI, o.smartAccount)
+	pos, err := saClient.GetPosition(ctx, market.VammAddress, uint8(dir))
+	if err != nil {
+		return nil, fmt.Errorf("get position: %w", err)
+	}
+	if pos == nil || pos.Data == nil {
+		return nil, fmt.Errorf("no open position")
+	}
+
+	var state stlb.PositionState
+	if err := tlb.LoadFromCell(&state, pos.Data.BeginParse()); err != nil {
+		return nil, fmt.Errorf("parse position: %w", err)
+	}
+
+	amount := tlb.FromNanoTON(state.Size)
+	return c.ClosePosition(ctx, market, dir, &amount, opts...)
+}
+
+func (c *Client) ClosePosition(ctx context.Context, market *Market, dir Direction, size *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+	o := c.resolveOptions(opts)
+	zeroCoins := tlb.ZeroCoins
+
+	order := &stlb.Order{
+		Value: stlb.TakeOrder{
+			Payload: stlb.StopOrderData{
+				Direction:    uint(dir),
+				Amount:       size,
+				TriggerPrice: &zeroCoins,
+			},
+		},
+	}
+
+	return c.placeOrder(ctx, market, order, o)
+}
+
+func (c *Client) PlaceStopLoss(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, triggerPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+	o := c.resolveOptions(opts)
+
+	order := &stlb.Order{
+		Value: stlb.StopOrder{
+			Payload: stlb.StopOrderData{
+				Direction:    uint(dir),
+				Amount:       amount,
+				TriggerPrice: triggerPrice,
+			},
+		},
+	}
+
+	return c.placeOrder(ctx, market, order, o)
+}
+
+func (c *Client) PlaceTakeProfit(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, triggerPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+	o := c.resolveOptions(opts)
+
+	order := &stlb.Order{
+		Value: stlb.TakeOrder{
+			Payload: stlb.StopOrderData{
+				Direction:    uint(dir),
+				Amount:       amount,
+				TriggerPrice: triggerPrice,
+			},
+		},
+	}
+
+	return c.placeOrder(ctx, market, order, o)
+}
+
+func (c *Client) AddMargin(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+	o := c.resolveOptions(opts)
+
+	order := &stlb.Order{
+		Value: stlb.AddMarginOrder{
+			Payload: stlb.MarginOrderData{
+				Direction: uint(dir),
+				Amount:    amount,
+			},
+		},
+	}
+
+	return c.placeOrder(ctx, market, order, o)
+}
+
+func (c *Client) RemoveMargin(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+	o := c.resolveOptions(opts)
+
+	order := &stlb.Order{
+		Value: stlb.RemoveMarginOrder{
+			Payload: stlb.MarginOrderData{
+				Direction: uint(dir),
+				Amount:    amount,
 			},
 		},
 	}

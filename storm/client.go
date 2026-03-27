@@ -2,6 +2,7 @@ package storm
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 	"net/http"
 	"sync"
@@ -47,6 +48,10 @@ func (c *Client) TonAPI() ton.APIClientWrapped {
 
 func (c *Client) SmartAccount() *address.Address {
 	return c.defaults.smartAccount
+}
+
+func (c *Client) Signer() ed25519.PrivateKey {
+	return c.defaults.signer
 }
 
 type Client struct {

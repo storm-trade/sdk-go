@@ -1,6 +1,6 @@
 # Storm Trade Go SDK
 
-Go SDK for interacting with [Storm Trade](https://storm.tg) perpetual futures protocol on TON blockchain.
+Go SDK for [Storm Trade](https://storm.tg) — perpetual futures on TON blockchain.
 
 ## Installation
 
@@ -8,477 +8,432 @@ Go SDK for interacting with [Storm Trade](https://storm.tg) perpetual futures pr
 go get github.com/storm-trade/sdk-go
 ```
 
-## Features
-
-- Smart Account management (deposits, withdrawals, public keys)
-- Order creation and signing (market, limit, stop-loss, take-profit)
-- Position data parsing
-- TLB serialization for TON blockchain
-
-## Contract Addresses
-
-### Factory (Smart Account deployer)
-
-| Network     | Address                                            |
-|-------------|----------------------------------------------------|
-| **Mainnet** | `EQA34l2ywiFdu_kb-HZMqLngFVDjw0DJZHo1aBokOap8xVMU` |
-| **Testnet** | `kQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_Qvr` |
-
-### Markets & Vaults
-
-Market (vAMM) and Vault addresses can be fetched dynamically
-using [config-discovery-client](https://github.com/storm-trade/config-discovery-client):
-
-```go
-import "github.com/storm-trade/config-discovery-client/client"
-
-// Initialize config client
-cfg := client.NewClient(client.Options{
-	// Mainnet
-	ConfigURL: "https://api5.storm.tg/api/config",
-	// Testnet: "https://api.stage.stormtrade.dev/api/config"
-})
-
-// Get all markets
-markets, err := cfg.GetMarkets()
-for _, m := range markets {
-	fmt.Printf("Market: %s, vAMM: %s\n", m.Name, m.VammAddress)
-}
-
-// Get vault address
-vault, err := cfg.GetVault()
-fmt.Printf("Vault: %s\n", vault.Address)
-```
-
 ## Quick Start
 
-### Initialize Client
-
 ```go
-package main
+ctx := context.Background()
 
-import (
-	"context"
-	"fmt"
-	"github.com/storm-trade/sdk-go/client/smartaccount"
-	"github.com/xssnick/tonutils-go/address"
-	"github.com/xssnick/tonutils-go/liteclient"
-	"github.com/xssnick/tonutils-go/ton"
+// Connect to TON
+pool := liteclient.NewConnectionPool()
+pool.AddConnectionsFromConfigUrl(ctx, "https://ton-blockchain.github.io/testnet-global.config.json")
+api := ton.NewAPIClient(pool, ton.ProofCheckPolicyUnsafe).WithRetry(10)
+
+// Create wallet from seed phrase
+words := strings.Split("your seed phrase ...", " ")
+w, _ := wallet.FromSeed(api, words, wallet.V4R2)
+
+// Derive Smart Account address from factory
+client := storm.NewClient(storm.Testnet)
+factory := smartaccount.NewFactory(api, address.MustParseAddr(client.FactoryAddress()))
+saAddr, _ := factory.GetSmartAccountAddress(ctx, w.WalletAddress())
+
+// Create SDK client with all options
+privKey := ed25519.PrivateKey(yourKeyBytes)
+client = storm.NewClient(storm.Testnet,
+    storm.WithTONApi(api),
+    storm.WithWallet(w),
+    storm.WithSmartAccount(saAddr),
+    storm.WithSigner(privKey),
+    storm.WithClockSkew(5*time.Second),
 )
 
-func main() {
-	// Connect to TON
-	client := liteclient.NewConnectionPool()
+// Place market order: 100 USDT margin, 3x leverage, long BTC
+btc, _ := client.Market("BTC", "USDT")
+amount := tlb.MustFromDecimal("100", 9)
 
-	// Mainnet
-	err := client.AddConnectionsFromConfigUrl(context.Background(),
-		"https://ton.org/global.config.json")
-
-	// Or Testnet
-	// err := client.AddConnectionsFromConfigUrl(context.Background(),
-	//     "https://ton.org/testnet-global.config.json")
-
-	if err != nil {
-		panic(err)
-	}
-
-	api := ton.NewAPIClient(client, ton.ProofCheckPolicyFast).WithRetry()
-
-	// Initialize Smart Account client
-	saAddress := address.MustParseAddr("EQ...your_smart_account_address...")
-	saClient := smartaccount.NewClient(api, saAddress)
-
-	// Get account data
-	data, err := saClient.GetStorageData(context.Background())
-	if err != nil {
-		panic(err)
-	}
-
-	// Access positions
-	for _, pos := range data.Positions.Slice() {
-		fmt.Printf("Position: size=%s, direction=%s\n",
-			pos.Size.String(),
-			pos.GetDirection())
-	}
-}
+result, _ := client.PlaceMarketOrder(ctx, btc, storm.Long, &amount, 3_000_000_000)
+fmt.Printf("Order hash: %x\n", result.OrderHash)
 ```
 
-### Deposit Native TON
+## Architecture
+
+The SDK has three layers:
+
+```
+storm/                      High-level client (recommended)
+sequencer/                  Sequencer REST API client
+client/
+├── vamm/                   On-chain vAMM queries
+├── vault/                  On-chain Vault queries
+├── smartaccount/           On-chain Smart Account operations
+└── positionmanager/        On-chain Position Manager queries
+contracts/                  Data types and TLB schemas
+tlb/                        Order types, position state, error codes
+```
+
+Most users only need the `storm/` package. Lower-level packages are available for custom workflows.
+
+## Client Setup
+
+### Networks
 
 ```go
-import (
-	"strings"
-	"github.com/storm-trade/sdk-go/client/smartaccount"
-	sa "github.com/storm-trade/sdk-go/contracts/smartaccount"
-	"github.com/xssnick/tonutils-go/tlb"
-	"github.com/xssnick/tonutils-go/ton/wallet"
+client := storm.NewClient(storm.Testnet, opts...)
+client := storm.NewClient(storm.Mainnet, opts...)
+```
+
+### Options
+
+| Option | Purpose |
+|--------|---------|
+| `WithSigner(key)` | ED25519 private key for signing orders |
+| `WithSmartAccount(addr)` | Smart Account address |
+| `WithTONApi(api)` | TON API client (for deposits, withdrawals, on-chain queries) |
+| `WithWallet(w)` | Wallet for on-chain transactions |
+| `WithClockSkew(d)` | Compensate local clock offset (recommended: 5s) |
+| `WithGasless()` | Use gasless execution mode |
+| `WithInit()` | Initialize Smart Account on first deposit |
+| `WithPublicKey(key)` | Set public key during initialization |
+
+## Markets & Assets
+
+Markets and assets are fetched from the config API automatically:
+
+```go
+// By name + settlement token
+btc, _ := client.Market("BTC", "USDT")
+eth, _ := client.Market("ETH", "TON")
+
+// First match by name
+btc, _ := client.Market("BTC")
+
+// List all markets
+markets, _ := client.Markets()
+
+// Assets (for deposits/withdrawals)
+usdt, _ := client.Asset("USDT")
+```
+
+## Trading
+
+All amounts in orders are in **9 decimals** internally. Use `tlb.MustFromDecimal("100", 9)` for 100 units.
+
+Leverage is also in 9 decimals: 3x = `3_000_000_000`.
+
+### Open Position
+
+```go
+amount := tlb.MustFromDecimal("100", 9)
+
+// Market order
+result, err := client.PlaceMarketOrder(ctx, market, storm.Long, &amount, 3_000_000_000)
+
+// Limit order
+limitPrice := tlb.MustFromTON("65000")
+result, err := client.PlaceLimitOrder(ctx, market, storm.Long, &amount, 3_000_000_000, &limitPrice)
+
+// Stop-limit order
+stopPrice := tlb.MustFromTON("64000")
+result, err := client.PlaceStopLimitOrder(ctx, market, storm.Long, &amount, 3_000_000_000, &limitPrice, &stopPrice)
+```
+
+### Open with SL/TP
+
+Attach stop-loss and take-profit to a new order via `OrderRequest` intents:
+
+```go
+sl := tlb.MustFromTON("60000")
+tp := tlb.MustFromTON("80000")
+
+result, err := client.PlaceMarketOrder(ctx, market, storm.Long, &amount, 3_000_000_000,
+    storm.WithStopLoss(&sl),
+    storm.WithTakeProfit(&tp),
 )
 
-// Create wallet from seed
-seed := strings.Split("your seed phrase here", " ")
-w, err := wallet.FromSeed(api, seed, wallet.HighloadV2R2)
-if err != nil {
-	panic(err)
-}
-
-// Deposit 10 TON
-amount := tlb.MustFromTON("10")
-
-// Optional: add public key for signing orders
-pubKey := sa.PublicKey(yourEd25519PublicKey)
-
-tx, err := saClient.DepositNative(
-	w,                 // wallet
-	w.WalletAddress(), // owner
-	vaultAddress,      // vault contract address
-	amount,            // amount to deposit
-	true,              // init (true for first deposit)
-	pubKey,            // optional public keys
-)
+// Result contains hashes for all three orders
+fmt.Printf("Order:      %x\n", result.OrderHash)
+fmt.Printf("StopLoss:   %x\n", result.StopLossHash)
+fmt.Printf("TakeProfit: %x\n", result.TakeProfitHash)
 ```
 
-### Deposit Jettons (USDT)
+### Close Position
+
+Close uses `TakeOrder` with `triggerPrice=0` (market execution). Direction is the **same** as the position, not opposite.
 
 ```go
-tx, err := saClient.DepositJetton(
-	w,                   // wallet
-	w.WalletAddress(),   // owner
-	vaultAddress,        // vault contract address
-	jettonMasterAddress, // USDT master contract
-	amount,              // amount to deposit
-	true,                // init
-	pubKey,              // optional public keys
-)
+// Partial close (0.001 BTC)
+size := tlb.MustFromDecimal("0.001", 9)
+result, err := client.ClosePosition(ctx, market, storm.Long, &size)
+
+// Close entire position (queries size on-chain)
+result, err := client.ClosePositionFull(ctx, market, storm.Long)
 ```
 
-### Withdraw
+### Standalone SL/TP
+
+Set stop-loss or take-profit on an existing position. These are independent orders, not linked to an opening order.
 
 ```go
-amount := tlb.MustFromTON("5")
-tx, err := saClient.Withdraw(w, vaultAddress, amount)
+size := tlb.MustFromDecimal("0.001", 9)
+trigger := tlb.MustFromTON("60000")
+
+// Stop loss
+result, err := client.PlaceStopLoss(ctx, market, storm.Long, &size, &trigger)
+
+// Take profit
+trigger = tlb.MustFromTON("80000")
+result, err := client.PlaceTakeProfit(ctx, market, storm.Long, &size, &trigger)
 ```
 
-### Public Key Management
+### Margin Management
 
 ```go
-// Add public key (for signing orders)
-tx, err := saClient.AddPublicKey(w, pubKey)
+margin := tlb.MustFromDecimal("50", 9)
 
-// Remove public key
-tx, err := saClient.RemovePublicKey(w, pubKey)
+// Add margin to reduce liquidation risk
+result, err := client.AddMargin(ctx, market, storm.Long, &margin)
 
-// Remove all keys except current
-tx, err := saClient.RemoveAllExceptCurrentPublicKey(w, currentPubKey)
-```
-
-## Creating Orders
-
-### Order Types
-
-```go
-import (
-	"time"
-	"github.com/storm-trade/sdk-go/tlb"
-)
-
-// Market Order - execute immediately at market price
-marketOrder := tlb.Order{
-	Value: tlb.MarketOrder{
-		Payload: tlb.LimitOrderData{
-			Expiration:       uint32(time.Now().Add(5 * time.Minute).Unix()),
-			Direction:        uint(tlb.ContractDirectionLong), // 0 = long, 1 = short
-			Amount:           tlb.MustFromTON("100"),          // position size in USD
-			Leverage:         3_000_000_000,                   // 3x leverage (9 decimals)
-			LimitPrice:       tlb.MustFromTON("0"),            // 0 for market
-			StopPrice:        tlb.MustFromTON("0"),
-			StopTriggerPrice: tlb.MustFromTON("0"),
-			TakeTriggerPrice: tlb.MustFromTON("0"),
-		},
-	},
-}
-
-// Limit Order - execute when price reaches limit
-limitOrder := tlb.Order{
-	Value: tlb.LimitOrder{
-		Payload: tlb.LimitOrderData{
-			Expiration:       uint32(time.Now().Add(24 * time.Hour).Unix()),
-			Direction:        uint(tlb.ContractDirectionLong),
-			Amount:           tlb.MustFromTON("100"),
-			Leverage:         5_000_000_000,           // 5x
-			LimitPrice:       tlb.MustFromTON("95000"), // entry price
-			StopPrice:        tlb.MustFromTON("0"),
-			StopTriggerPrice: tlb.MustFromTON("0"),
-			TakeTriggerPrice: tlb.MustFromTON("0"),
-		},
-	},
-}
-
-// Stop-Loss Order
-stopLossOrder := tlb.Order{
-	Value: tlb.StopOrder{
-		Payload: tlb.StopOrderData{
-			Expiration:   uint32(time.Now().Add(7 * 24 * time.Hour).Unix()),
-			Direction:    uint(tlb.ContractDirectionLong),
-			Amount:       tlb.MustFromTON("100"),   // close amount
-			TriggerPrice: tlb.MustFromTON("90000"), // trigger price
-		},
-	},
-}
-
-// Take-Profit Order
-takeProfitOrder := tlb.Order{
-	Value: tlb.TakeOrder{
-		Payload: tlb.StopOrderData{
-			Expiration:   uint32(time.Now().Add(7 * 24 * time.Hour).Unix()),
-			Direction:    uint(tlb.ContractDirectionLong),
-			Amount:       tlb.MustFromTON("100"),
-			TriggerPrice: tlb.MustFromTON("110000"),
-		},
-	},
-}
-
-// Add Margin
-addMarginOrder := tlb.Order{
-	Value: tlb.AddMarginOrder{
-		Payload: tlb.MarginOrderData{
-			Direction: uint(tlb.ContractDirectionLong),
-			Amount:    tlb.MustFromTON("50"), // margin to add
-		},
-	},
-}
-
-// Remove Margin
-removeMarginOrder := tlb.Order{
-	Value: tlb.RemoveMarginOrder{
-		Payload: tlb.MarginOrderData{
-			Direction: uint(tlb.ContractDirectionLong),
-			Amount:    tlb.MustFromTON("25"), // margin to remove
-		},
-	},
-}
-```
-
-### Create and Sign User Intent
-
-```go
-import (
-	"crypto/ed25519"
-	"encoding/base64"
-	"fmt"
-	"time"
-	"github.com/storm-trade/sdk-go/contracts/hw"
-	"github.com/storm-trade/sdk-go/contracts/smartaccount"
-	gotlb "github.com/xssnick/tonutils-go/tlb"
-)
-
-// Create UserIntent
-intent := &smartaccount.UserIntent{
-	QueryId:          hw.FromSeqno(nextQueryId), // get from sequencer API
-	CreatedAt:        uint64(time.Now().Unix()),
-	ReferenceQueryId: nil,            // for linked orders
-	PublicKey:        publicKeyBytes, // 32 bytes
-	Intent: &smartaccount.UserIntentPayload{
-		VAmm:         vammAddress, // market contract
-		SmartAccount: saAddress,
-		Order:        &marketOrder,
-	},
-}
-
-// Sign the intent
-privateKey := ed25519.PrivateKey(yourPrivateKeyBytes)
-signedMessage, err := smartaccount.SignMessage(intent, privateKey)
-if err != nil {
-	panic(err)
-}
-
-// Get intent hash
-hash, err := signedMessage.Hash()
-fmt.Println("Intent hash:", hash)
-
-// Serialize to cell for sending
-cell, err := gotlb.ToCell(signedMessage)
-if err != nil {
-	panic(err)
-}
-
-// Base64 encode for API
-msgBase64 := base64.StdEncoding.EncodeToString(cell.ToBOC())
+// Remove excess margin
+result, err := client.RemoveMargin(ctx, market, storm.Long, &margin)
 ```
 
 ### Cancel Order
 
 ```go
-// Create cancel message
-cancelMsg := &smartaccount.CancelMessage{
-	SmartAccountAddress: saAddress,
-	OrderId:             orderHashBytes, // 32 bytes - hash of the order to cancel
-}
-
-// Sign it
-cancelCell, _ := gotlb.ToCell(cancelMsg)
-signature := ed25519.Sign(privateKey, cancelCell.Hash())
-
-signedCancel := &smartaccount.SignedCancelMessage{
-	Message:   cancelMsg,
-	PublicKey: publicKeyBytes,
-	Signature: signature,
-}
+err := client.CancelOrder(ctx, result.OrderHash)
 ```
 
-## Send Orders to Sequencer
+## Deposits & Withdrawals
 
-Orders are sent to the Storm Trade sequencer via REST API:
+Deposit and withdrawal amounts use the **asset's native decimals** (6 for USDT, 9 for TON/NOT).
 
 ```go
-import (
-	"bytes"
-	"encoding/base64"
-	"encoding/json"
-	"net/http"
+// Deposit 100 USDT
+amount := tlb.MustFromDecimal("100", 6)
+err := client.Deposit(ctx, "USDT", &amount)
+
+// Deposit 1 TON
+amount = tlb.MustFromDecimal("1", 9)
+err = client.Deposit(ctx, "TON", &amount)
+
+// First deposit — initialize Smart Account with public key
+pubKey := ed25519.PrivateKey(keyBytes).Public().(ed25519.PublicKey)
+err = client.Deposit(ctx, "TON", &amount,
+    storm.WithInit(),
+    storm.WithPublicKey(pubKey),
 )
 
-type PlaceOrderRequest struct {
-	SmartAccount string `json:"sa"`
-	Message      string `json:"message"`    // base64 encoded signed intent
-	PublicKey    string `json:"public_key"` // base64 encoded public key
-	Signature    string `json:"signature"`  // base64 encoded signature
+// Withdraw
+amount = tlb.MustFromDecimal("50", 6)
+err = client.Withdraw(ctx, "USDT", &amount)
+```
+
+### Init Rules
+
+| init | publicKey | Result |
+|------|-----------|--------|
+| true | set | Deploy SA + register key |
+| true | nil | Deploy SA, no key |
+| false | nil | Normal deposit |
+| false | set | **Error 115** — contract rejects key without init |
+
+### Result
+
+Every order method returns `*PlaceOrderResult`:
+
+```go
+type PlaceOrderResult struct {
+    QueryID        uint64
+    OrderHash      []byte                        // use for CancelOrder
+    StopLossID     uint64
+    StopLossHash   []byte
+    TakeProfitID   uint64
+    TakeProfitHash []byte
+    Response       *sequencer.PlaceOrderResponse  // OK, Trace, Intent
 }
-
-func placeOrder(signedMessage *smartaccount.SignedMessage) error {
-	cell, _ := gotlb.ToCell(signedMessage.Message)
-
-	req := PlaceOrderRequest{
-		SmartAccount: saAddress.String(),
-		Message:      base64.StdEncoding.EncodeToString(cell.ToBOC()),
-		PublicKey:    base64.StdEncoding.EncodeToString(signedMessage.PublicKey[:]),
-		Signature:    base64.StdEncoding.EncodeToString(signedMessage.Signature),
-	}
-
-	body, _ := json.Marshal(req)
-
-	// Mainnet: https://api5.storm.tg/instant-trading
-	// Testnet: https://api.stage.stormtrade.dev/instant-trading
-	resp, err := http.Post(
-		"https://api5.storm.tg/instant-trading/order/place",
-		"application/json",
-		bytes.NewReader(body),
-	)
-
-	return err
-}
 ```
 
-## Data Structures
+Check `result.Response.OK` for success. On failure, `result.Response.Trace` contains the contract exit code for debugging.
 
-### Position State
+## Key Management
 
 ```go
-type PositionState struct {
-	Size                         *big.Int   // position size (9 decimals)
-	Direction                    uint8      // 0 = long, 1 = short
-	Margin                       *tlb.Coins // margin amount
-	OpenNotional                 *tlb.Coins // open notional value
-	LastUpdatedCumulativePremium int64      // funding rate accumulator
-	Fee                          uint64     // trading fee (basis points)
-	Discount                     uint64     // fee discount
-	Rebate                       uint64     // referral rebate
-	LastUpdatedTimestamp         uint64     // last update time
-}
-
-// Check position direction
-pos.GetDirection() // returns tlb.DirectionLong or tlb.DirectionShort
-
-// Check if position is closed
-pos.IsClosed() // returns true if Size == 0
+// Register signing key in Smart Account (on-chain transaction)
+err := client.AddPublicKey(ctx)
 ```
 
-### Query ID
+Requires `WithSigner()`, `WithWallet()`, `WithSmartAccount()`, and `WithTONApi()`.
 
-Storm Trade uses a custom QueryId format for replay protection:
+## Market Data (On-Chain)
+
+Query vAMM and Vault contracts directly:
 
 ```go
-import "github.com/storm-trade/sdk-go/contracts/hw"
+// Prices
+spotPrice, _ := client.GetSpotPrice(ctx, market)
+terminalPrice, _ := client.GetTerminalAmmPrice(ctx, market)
 
-// Create from sequence number (get next from API)
-queryId := hw.FromSeqno(12345)
+// Market state
+state, _ := client.GetAmmState(ctx, market)
+status, _ := client.GetAmmStatus(ctx, market)
+settings, _ := client.GetExchangeSettings(ctx, market)
 
-// Get sequence number from QueryId
-seqno := queryId.Seqno()
+// Oracle
+oracle, _ := client.GetOracleData(ctx, market)
 
-// Max query ID
-maxId := hw.MaxQueryId // 1023 * 8192 = 8,380,416
+// Funding
+funding, _ := client.GetFunding(ctx, market, oraclePrice, settlementPrice)
+premium, _ := client.GetPremium(ctx, market, oraclePrice)
+
+// Vault
+vaultData, _ := client.GetVaultData(ctx, "USDT")
+bufferData, _ := client.GetBufferData(ctx, "USDT")
 ```
 
-## API Endpoints
-
-Base URLs:
-
-- **Mainnet:** `https://api5.storm.tg/instant-trading`
-- **Testnet:** `https://api.stage.stormtrade.dev/instant-trading`
-
-| Endpoint                           | Method | Description          |
-|------------------------------------|--------|----------------------|
-| `/order/place`                     | POST   | Place a new order    |
-| `/order/cancel`                    | POST   | Cancel an order      |
-| `/status`                          | GET    | Get sequencer status |
-| `/smartaccount/{address}/state`    | GET    | Get account state    |
-| `/smartaccount/{address}/balance`  | GET    | Get account balance  |
-| `/smartaccount/{address}/query_id` | GET    | Get next query ID    |
-| `/orderbook/orders`                | GET    | Get orderbook orders |
-| `/intent/{hash}`                   | GET    | Get intent by hash   |
-
-## Constants
-
-### Leverage
-
-Leverage is specified with 9 decimal places:
-
-- 1x = `1_000_000_000`
-- 2x = `2_000_000_000`
-- 5x = `5_000_000_000`
-- 10x = `10_000_000_000`
-- Max = `50_000_000_000` (50x)
-
-### Direction
+## Account Data
 
 ```go
-tlb.ContractDirectionLong  = 0 // Long position
-tlb.ContractDirectionShort = 1 // Short position
+// Balances (from sequencer)
+balances, _ := client.GetBalances(ctx)
+
+// Positions (from sequencer)
+positions, _ := client.GetPositions(ctx)
 ```
 
-### Order Types
+### Low-Level On-Chain Queries
 
 ```go
-tlb.MarketOrderType       // Execute at market price
-tlb.LimitOrderType        // Execute at limit price
-tlb.StopOrderType         // Stop-loss order
-tlb.TakeOrderType         // Take-profit order
-tlb.AddMarginOrderType    // Add margin to position
-tlb.RemoveMarginOrderType // Remove margin from position
+// Smart Account
+saClient := smartaccount.NewClient(tonAPI, saAddr)
+keysData, _ := saClient.GetKeysData(ctx)
+balance, _ := saClient.GetBalance(ctx, vaultAddr)
+nftData, _ := saClient.GetNftData(ctx)
+position, _ := saClient.GetPosition(ctx, vammAddr, 0) // 0=long, 1=short
+
+// Factory
+factory := smartaccount.NewFactory(tonAPI, factoryAddr)
+factoryData, _ := factory.GetFactoryData(ctx)
+minFees, _ := factory.GetMinFees(ctx)
+
+// Position Manager
+pm := positionmanager.NewClient(tonAPI, pmAddr)
+pmData, _ := pm.GetPositionManagerData(ctx)
+inited, _ := pm.GetIsInited(ctx)
+
+// vAMM (direct)
+vc := vamm.NewClient(tonAPI, vammAddr)
+spotPrice, _ := vc.GetSpotPrice(ctx)
+marginData, _ := vc.GetRemainMargin(ctx, oraclePrice, positionCell, settlementPrice)
+
+// Vault (direct)
+vault := vault.NewClient(tonAPI, vaultAddr)
+vaultData, _ := vault.GetVaultData(ctx)
+posAddr, _ := vault.GetPositionAddress(ctx, traderAddr, vammAddr)
 ```
 
-## Error Handling
+## Sequencer API
 
-Common smart account errors:
+The `sequencer` package wraps the REST API:
 
-| Code | Name                   | Description               |
-|------|------------------------|---------------------------|
-| 171  | QueryAlreadyProcessed  | Query ID already used     |
-| 174  | IntentAlreadyProcessed | Intent already executed   |
-| 402  | PublicKeyNotFound      | Public key not registered |
-| 409  | InvalidPosition        | Position state mismatch   |
-| 411  | WrongSize              | Invalid order size        |
-| 431  | InvalidBaseAssetAmount | Invalid amount            |
+```go
+import "github.com/storm-trade/sdk-go/sequencer"
 
-## Examples
+seq := sequencer.NewClient(sequencer.TestnetURL)
 
-See the [examples](./examples) directory for complete working examples.
+// Account
+state, _ := seq.GetAccountState(ctx, saAddress)
+balances, _ := seq.GetBalances(ctx, saAddress)
+positions, _ := seq.GetPositions(ctx, saAddress)
+nextQID, _ := seq.GetNextQueryID(ctx, saAddress)
+
+// Status
+status, _ := seq.GetStatus(ctx)
+intent, _ := seq.GetIntent(ctx, hash)
+
+// Orders
+resp, _ := seq.PlaceOrder(ctx, placeOrderRequest)
+seq.CancelOrder(ctx, cancelOrderRequest)
+
+// Orderbook
+depth, _ := seq.GetOrderbookDepth(ctx, assetID, levels)
+
+// Events
+events, _ := seq.GetEvents(ctx, sequencer.EventsFilter{})
+events, _ := seq.GetAccountEvents(ctx, saAddress, sequencer.EventsFilter{})
+
+// Bundles
+bundles, _ := seq.GetBundles(ctx)
+finalizing, _ := seq.GetFinalizingBundles(ctx, saAddress)
+sent, _ := seq.GetSentBundles(ctx, saAddress)
+
+// Gasless
+balance, _ := seq.GetGaslessBalance(ctx, saAddress)
+resp, _ = seq.GaslessWithdraw(ctx, withdrawRequest)
+
+// Position sync
+seq.SyncPosition(ctx, syncRequest)
+```
+
+### Base URLs
+
+| Network | URL |
+|---------|-----|
+| Testnet | `https://api.stage.stormtrade.dev/instant-trading` |
+| Mainnet | `https://api5.storm.tg/instant-trading` |
+
+## CLI Tool
+
+The `cmd/example` directory contains a CLI for testing:
+
+```bash
+cp .env.example .env
+# Edit .env with your seed and private key
+
+go run ./cmd/example keygen                              # Generate ED25519 key pair
+go run ./cmd/example add-key                             # Register key in Smart Account
+go run ./cmd/example markets                             # List markets
+go run ./cmd/example balance                             # Show balances
+go run ./cmd/example positions                           # Show positions
+go run ./cmd/example info BTC USDT                       # Market & vault data
+go run ./cmd/example deposit USDT 100                    # Deposit
+go run ./cmd/example deposit TON 0.5 --init              # First deposit (init SA + key)
+go run ./cmd/example withdraw USDT 50                    # Withdraw
+go run ./cmd/example order market BTC USDT long 100 3    # Market order
+go run ./cmd/example order limit BTC USDT long 100 3 --limit=65000
+go run ./cmd/example close BTC USDT long 0.001           # Partial close
+go run ./cmd/example close-all BTC USDT long             # Full close
+go run ./cmd/example stop-loss BTC USDT long 0.001 60000
+go run ./cmd/example take-profit BTC USDT long 0.001 80000
+go run ./cmd/example add-margin BTC USDT long 50
+go run ./cmd/example remove-margin BTC USDT long 20
+go run ./cmd/example cancel <hash>
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `STORM_SEED` | Wallet seed phrase (24 words) | required |
+| `STORM_PRIVATE_KEY` | ED25519 private key (hex) | required for orders |
+| `STORM_NETWORK` | `testnet` or `mainnet` | `testnet` |
+| `STORM_WALLET_VERSION` | `v3r2`, `v4r2`, `v5r1` | `v4r2` |
+| `STORM_SUBWALLET_ID` | Custom subwallet ID | version default |
+| `STORM_GLOBAL_ID` | Override network global ID (v5r1) | auto from network |
+
+## Contract Addresses
+
+| Network | Factory |
+|---------|---------|
+| Testnet | `kQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_Qvr` |
+| Mainnet | `EQA34l2ywiFdu_kb-HZMqLngFVDjw0DJZHo1aBokOap8xVMU` |
+
+Market and vault addresses are fetched automatically from the config API.
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| 115 | Key init not allowed without init flag |
+| 170 | Invalid `created_at` timestamp |
+| 171 | Query already processed |
+| 402 | Public key not registered |
+| 411 | Wrong order size |
+| 471 | Position not ready for close (cooldown) |
 
 ## Links
 
 - [Storm Trade](https://storm.tg)
 - [Documentation](https://docs.storm.tg)
-- [API Reference](https://api5.storm.tg/instant-trading/swagger/index.html)
 - [Telegram](https://t.me/StormTradeBot)
 
 ## License

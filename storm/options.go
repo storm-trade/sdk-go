@@ -17,6 +17,13 @@ const (
 	Short Direction = 1
 )
 
+func (d Direction) Opposite() Direction {
+	if d == Long {
+		return Short
+	}
+	return Long
+}
+
 type Option func(*clientOptions)
 
 type clientOptions struct {
