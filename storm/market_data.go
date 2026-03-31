@@ -6,18 +6,19 @@ import (
 	"math/big"
 
 	vammclient "github.com/storm-trade/sdk-go/client/vamm"
+	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/contracts/vamm"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 )
 
-func (c *Client) vammClient(market *Market) (*vammclient.Client, error) {
+func (c *Client) vammClient(market *config.Market) (*vammclient.Client, error) {
 	if c.defaults.tonAPI == nil {
 		return nil, fmt.Errorf("TON API required: use WithTONApi()")
 	}
 	return vammclient.NewClient(c.defaults.tonAPI, market.VammAddress), nil
 }
 
-func (c *Client) GetSpotPrice(ctx context.Context, market *Market) (*big.Int, error) {
+func (c *Client) GetSpotPrice(ctx context.Context, market *config.Market) (*big.Int, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -25,7 +26,7 @@ func (c *Client) GetSpotPrice(ctx context.Context, market *Market) (*big.Int, er
 	return vc.GetSpotPrice(ctx)
 }
 
-func (c *Client) GetTerminalAmmPrice(ctx context.Context, market *Market) (*big.Int, error) {
+func (c *Client) GetTerminalAmmPrice(ctx context.Context, market *config.Market) (*big.Int, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -33,7 +34,7 @@ func (c *Client) GetTerminalAmmPrice(ctx context.Context, market *Market) (*big.
 	return vc.GetTerminalAmmPrice(ctx)
 }
 
-func (c *Client) GetAmmState(ctx context.Context, market *Market) (*vamm.AmmState, error) {
+func (c *Client) GetAmmState(ctx context.Context, market *config.Market) (*vamm.AmmState, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -41,7 +42,7 @@ func (c *Client) GetAmmState(ctx context.Context, market *Market) (*vamm.AmmStat
 	return vc.GetAmmState(ctx)
 }
 
-func (c *Client) GetAmmStatus(ctx context.Context, market *Market) (*vamm.AmmStatus, error) {
+func (c *Client) GetAmmStatus(ctx context.Context, market *config.Market) (*vamm.AmmStatus, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -49,7 +50,7 @@ func (c *Client) GetAmmStatus(ctx context.Context, market *Market) (*vamm.AmmSta
 	return vc.GetAmmStatus(ctx)
 }
 
-func (c *Client) GetExchangeSettings(ctx context.Context, market *Market) (*vamm.ExchangeSettings, error) {
+func (c *Client) GetExchangeSettings(ctx context.Context, market *config.Market) (*vamm.ExchangeSettings, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -57,7 +58,7 @@ func (c *Client) GetExchangeSettings(ctx context.Context, market *Market) (*vamm
 	return vc.GetExchangeSettings(ctx)
 }
 
-func (c *Client) GetOracleData(ctx context.Context, market *Market) (*vamm.OracleData, error) {
+func (c *Client) GetOracleData(ctx context.Context, market *config.Market) (*vamm.OracleData, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -65,7 +66,7 @@ func (c *Client) GetOracleData(ctx context.Context, market *Market) (*vamm.Oracl
 	return vc.GetOracleData(ctx)
 }
 
-func (c *Client) GetFunding(ctx context.Context, market *Market, price, settlementPrice *big.Int) (*vamm.FundingData, error) {
+func (c *Client) GetFunding(ctx context.Context, market *config.Market, price, settlementPrice *big.Int) (*vamm.FundingData, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -73,7 +74,7 @@ func (c *Client) GetFunding(ctx context.Context, market *Market, price, settleme
 	return vc.GetFunding(ctx, price, settlementPrice)
 }
 
-func (c *Client) GetPremium(ctx context.Context, market *Market, price *big.Int) (*big.Int, error) {
+func (c *Client) GetPremium(ctx context.Context, market *config.Market, price *big.Int) (*big.Int, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -81,7 +82,7 @@ func (c *Client) GetPremium(ctx context.Context, market *Market, price *big.Int)
 	return vc.GetPremium(ctx, price)
 }
 
-func (c *Client) GetDayTradingData(ctx context.Context, market *Market) (*vamm.DayTradingData, error) {
+func (c *Client) GetDayTradingData(ctx context.Context, market *config.Market) (*vamm.DayTradingData, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err
@@ -89,7 +90,7 @@ func (c *Client) GetDayTradingData(ctx context.Context, market *Market) (*vamm.D
 	return vc.GetDayTradingData(ctx)
 }
 
-func (c *Client) GetRemainMargin(ctx context.Context, market *Market, oraclePrice *big.Int, positionCell *cell.Cell, settlementPrice *big.Int) (*vamm.MarginData, error) {
+func (c *Client) GetRemainMargin(ctx context.Context, market *config.Market, oraclePrice *big.Int, positionCell *cell.Cell, settlementPrice *big.Int) (*vamm.MarginData, error) {
 	vc, err := c.vammClient(market)
 	if err != nil {
 		return nil, err

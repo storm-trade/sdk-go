@@ -1,4 +1,4 @@
-package storm
+package config
 
 import (
 	"context"
@@ -10,7 +10,8 @@ import (
 )
 
 func TestFetchConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{
 			"assets": [{"name":"TON","decimals":9,"assetId":"TON"}],
@@ -34,20 +35,29 @@ func TestFetchConfig(t *testing.T) {
 				"isHidden": false
 			}]
 		}`))
-	}))
+	})
+	mux.HandleFunc("/assets", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`[{"name":"BTC","index":1,"type":"Crypto"},{"name":"ETH","index":2,"type":"Crypto"}]`))
+	})
+	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	cfg, err := fetchConfig(context.Background(), server.URL, http.DefaultClient)
+	cfg, err := FetchConfig(context.Background(), server.URL, http.DefaultClient)
 	require.NoError(t, err)
-	require.Len(t, cfg.markets, 1)
-	require.Equal(t, "BTC/USDT", cfg.markets[0].Name)
-	require.Equal(t, "base", cfg.markets[0].Type)
-	require.NotNil(t, cfg.markets[0].VammAddress)
-	require.NotNil(t, cfg.markets[0].VaultAddress)
-	require.Len(t, cfg.assets, 1)
-	require.Equal(t, "TON", cfg.assets[0].Name)
-	require.Equal(t, 9, cfg.assets[0].Decimals)
-	require.NotNil(t, cfg.assets[0].VaultAddress)
+	require.Len(t, cfg.Markets, 1)
+	require.Equal(t, "BTC/USDT", cfg.Markets[0].Name)
+	require.Equal(t, 1, cfg.Markets[0].AssetIndex)
+	require.Equal(t, "base", cfg.Markets[0].Type)
+	require.NotNil(t, cfg.Markets[0].VammAddress)
+	require.NotNil(t, cfg.Markets[0].VaultAddress)
+	require.Len(t, cfg.Assets, 1)
+	require.Equal(t, "TON", cfg.Assets[0].Name)
+	require.Equal(t, 9, cfg.Assets[0].Decimals)
+	require.NotNil(t, cfg.Assets[0].VaultAddress)
+	require.Len(t, cfg.BaseAssets, 2)
+	require.Equal(t, "BTC", cfg.BaseAssets[0].Name)
+	require.Equal(t, 1, cfg.BaseAssets[0].Index)
 }
 
 func TestFetchConfig_APIError(t *testing.T) {
@@ -57,7 +67,7 @@ func TestFetchConfig_APIError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchConfig(context.Background(), server.URL, http.DefaultClient)
+	_, err := FetchConfig(context.Background(), server.URL, http.DefaultClient)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "500")
 }

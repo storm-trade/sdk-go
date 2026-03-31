@@ -10,20 +10,6 @@ import (
 	"github.com/xssnick/tonutils-go/ton/wallet"
 )
 
-type Direction int
-
-const (
-	Long  Direction = 0
-	Short Direction = 1
-)
-
-func (d Direction) Opposite() Direction {
-	if d == Long {
-		return Short
-	}
-	return Long
-}
-
 type Option func(*clientOptions)
 
 type clientOptions struct {
@@ -37,6 +23,8 @@ type clientOptions struct {
 	wallet       *wallet.Wallet
 	stopLoss     *tlb.Coins
 	takeProfit   *tlb.Coins
+	expiration   *uint32
+	queryID      *uint64
 }
 
 func WithSigner(key ed25519.PrivateKey) Option {
@@ -77,6 +65,14 @@ func WithStopLoss(price *tlb.Coins) Option {
 
 func WithTakeProfit(price *tlb.Coins) Option {
 	return func(o *clientOptions) { o.takeProfit = price }
+}
+
+func WithExpiration(exp uint32) Option {
+	return func(o *clientOptions) { o.expiration = &exp }
+}
+
+func WithQueryID(id uint64) Option {
+	return func(o *clientOptions) { o.queryID = &id }
 }
 
 func (c *Client) resolveOptions(opts []Option) clientOptions {

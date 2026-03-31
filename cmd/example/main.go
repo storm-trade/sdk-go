@@ -19,6 +19,7 @@ import (
 	"github.com/storm-trade/sdk-go/client/smartaccount"
 	vammclient "github.com/storm-trade/sdk-go/client/vamm"
 	vaultclient "github.com/storm-trade/sdk-go/client/vault"
+	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/storm"
 	stlb "github.com/storm-trade/sdk-go/tlb"
 	"github.com/xssnick/tonutils-go/address"
@@ -108,12 +109,12 @@ Environment:
   STORM_GLOBAL_ID       Override network global ID for v5r1 (optional)`)
 }
 
-func parseNetwork() storm.Network {
+func parseNetwork() config.Network {
 	switch os.Getenv("STORM_NETWORK") {
 	case "", "testnet":
-		return storm.Testnet
+		return config.Testnet
 	case "mainnet":
-		return storm.Mainnet
+		return config.Mainnet
 	default:
 		log.Fatalf("unknown STORM_NETWORK %q, use testnet or mainnet", os.Getenv("STORM_NETWORK"))
 		return 0
@@ -122,7 +123,7 @@ func parseNetwork() storm.Network {
 
 func mustClient(ctx context.Context) *storm.Client {
 	network := parseNetwork()
-	factoryAddr := storm.NewClient(network).FactoryAddress()
+	factoryAddr := config.Networks[network].FactoryAddress
 	var opts []storm.Option
 
 	if seed := os.Getenv("STORM_SEED"); seed != "" {
@@ -157,17 +158,17 @@ func mustClient(ctx context.Context) *storm.Client {
 	return storm.NewClient(network, opts...)
 }
 
-var tonConfigURLs = map[storm.Network]string{
-	storm.Testnet: "https://ton-blockchain.github.io/testnet-global.config.json",
-	storm.Mainnet: "https://ton-blockchain.github.io/global.config.json",
+var tonConfigURLs = map[config.Network]string{
+	config.Testnet: "https://ton-blockchain.github.io/testnet-global.config.json",
+	config.Mainnet: "https://ton-blockchain.github.io/global.config.json",
 }
 
-var networkGlobalIDs = map[storm.Network]int32{
-	storm.Testnet: wallet.TestnetGlobalID,
-	storm.Mainnet: wallet.MainnetGlobalID,
+var networkGlobalIDs = map[config.Network]int32{
+	config.Testnet: wallet.TestnetGlobalID,
+	config.Mainnet: wallet.MainnetGlobalID,
 }
 
-func mustTON(ctx context.Context, seed string, network storm.Network) (ton.APIClientWrapped, *wallet.Wallet) {
+func mustTON(ctx context.Context, seed string, network config.Network) (ton.APIClientWrapped, *wallet.Wallet) {
 	pool := liteclient.NewConnectionPool()
 	if err := pool.AddConnectionsFromConfigUrl(ctx, tonConfigURLs[network]); err != nil {
 		log.Fatalf("connect to TON: %v", err)
@@ -196,7 +197,7 @@ func mustTON(ctx context.Context, seed string, network storm.Network) (ton.APICl
 	return api, w
 }
 
-func walletVersion(network storm.Network) wallet.VersionConfig {
+func walletVersion(network config.Network) wallet.VersionConfig {
 	switch os.Getenv("STORM_WALLET_VERSION") {
 	case "", "v4r2":
 		return wallet.V4R2
@@ -432,12 +433,12 @@ func cmdCancel(ctx context.Context) {
 	fmt.Printf("Order %s cancelled\n", os.Args[2])
 }
 
-func parseDirection(s string) storm.Direction {
+func parseDirection(s string) config.Direction {
 	switch s {
 	case "long":
-		return storm.Long
+		return config.Long
 	case "short":
-		return storm.Short
+		return config.Short
 	default:
 		log.Fatalf("invalid direction %q, use long or short", s)
 		return 0
@@ -731,11 +732,11 @@ func cmdInfo(ctx context.Context) {
 			fmt.Printf("[GetLpMinterAddress] %s\n", lpMinter)
 		}
 
-		vammAddr, err := vc.GetVAMMAddress(ctx, market.ID)
+		vammAddr, err := vc.GetVAMMAddress(ctx, market.AssetIndex)
 		if err != nil {
-			fmt.Printf("[GetVAMMAddress(%d)] ERROR: %v\n", market.ID, err)
+			fmt.Printf("[GetVAMMAddress(%d)] ERROR: %v\n", market.AssetIndex, err)
 		} else {
-			fmt.Printf("[GetVAMMAddress(%d)] %s\n", market.ID, vammAddr)
+			fmt.Printf("[GetVAMMAddress(%d)] %s\n", market.AssetIndex, vammAddr)
 		}
 
 		if saAddr != nil {
@@ -752,7 +753,7 @@ func cmdInfo(ctx context.Context) {
 		fmt.Println()
 		fmt.Printf("=== Factory ===\n\n")
 
-		factory := smartaccount.NewFactory(tonAPI, address.MustParseAddr(client.FactoryAddress()))
+		factory := smartaccount.NewFactory(tonAPI, address.MustParseAddr(config.Networks[client.Network()].FactoryAddress))
 
 		factoryData, err := factory.GetFactoryData(ctx)
 		if err != nil {

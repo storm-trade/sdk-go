@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sa "github.com/storm-trade/sdk-go/client/smartaccount"
+	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/contracts/hw"
 	"github.com/storm-trade/sdk-go/contracts/smartaccount"
 	"github.com/storm-trade/sdk-go/sequencer"
@@ -25,7 +26,14 @@ type PlaceOrderResult struct {
 	Response       *sequencer.PlaceOrderResponse
 }
 
-func (c *Client) PlaceMarketOrder(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, leverage uint64, opts ...Option) (*PlaceOrderResult, error) {
+func expirationOrDefault(o clientOptions, defaultDur time.Duration) uint32 {
+	if o.expiration != nil {
+		return *o.expiration
+	}
+	return uint32(time.Now().Add(defaultDur).Unix())
+}
+
+func (c *Client) PlaceMarketOrder(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, leverage uint64, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 	zeroCoins := tlb.ZeroCoins
 
@@ -41,7 +49,7 @@ func (c *Client) PlaceMarketOrder(ctx context.Context, market *Market, dir Direc
 	order := &stlb.Order{
 		Value: stlb.MarketOrder{
 			Payload: stlb.LimitOrderData{
-				Expiration:       uint32(time.Now().Add(5 * time.Minute).Unix()),
+				Expiration:       expirationOrDefault(o, 15*time.Minute),
 				Direction:        uint(dir),
 				Amount:           amount,
 				Leverage:         leverage,
@@ -56,7 +64,7 @@ func (c *Client) PlaceMarketOrder(ctx context.Context, market *Market, dir Direc
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) PlaceLimitOrder(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, leverage uint64, limitPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) PlaceLimitOrder(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, leverage uint64, limitPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 	zeroCoins := tlb.ZeroCoins
 
@@ -72,7 +80,7 @@ func (c *Client) PlaceLimitOrder(ctx context.Context, market *Market, dir Direct
 	order := &stlb.Order{
 		Value: stlb.LimitOrder{
 			Payload: stlb.LimitOrderData{
-				Expiration:       uint32(time.Now().Add(24 * time.Hour).Unix()),
+				Expiration:       expirationOrDefault(o, 60*24*time.Hour),
 				Direction:        uint(dir),
 				Amount:           amount,
 				Leverage:         leverage,
@@ -87,7 +95,7 @@ func (c *Client) PlaceLimitOrder(ctx context.Context, market *Market, dir Direct
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, leverage uint64, limitPrice, stopPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, leverage uint64, limitPrice, stopPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 	zeroCoins := tlb.ZeroCoins
 
@@ -103,7 +111,7 @@ func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *Market, dir Di
 	order := &stlb.Order{
 		Value: stlb.LimitOrder{
 			Payload: stlb.LimitOrderData{
-				Expiration:       uint32(time.Now().Add(24 * time.Hour).Unix()),
+				Expiration:       expirationOrDefault(o, 60*24*time.Hour),
 				Direction:        uint(dir),
 				Amount:           amount,
 				Leverage:         leverage,
@@ -118,7 +126,7 @@ func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *Market, dir Di
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) ClosePositionFull(ctx context.Context, market *Market, dir Direction, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) ClosePositionFull(ctx context.Context, market *config.Market, dir config.Direction, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 	if o.tonAPI == nil {
 		return nil, fmt.Errorf("TON API required: use WithTONApi()")
@@ -145,7 +153,7 @@ func (c *Client) ClosePositionFull(ctx context.Context, market *Market, dir Dire
 	return c.ClosePosition(ctx, market, dir, &amount, opts...)
 }
 
-func (c *Client) ClosePosition(ctx context.Context, market *Market, dir Direction, size *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) ClosePosition(ctx context.Context, market *config.Market, dir config.Direction, size *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 	zeroCoins := tlb.ZeroCoins
 
@@ -162,7 +170,7 @@ func (c *Client) ClosePosition(ctx context.Context, market *Market, dir Directio
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) PlaceStopLoss(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, triggerPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) PlaceStopLoss(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, triggerPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 
 	order := &stlb.Order{
@@ -178,7 +186,7 @@ func (c *Client) PlaceStopLoss(ctx context.Context, market *Market, dir Directio
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) PlaceTakeProfit(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, triggerPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) PlaceTakeProfit(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, triggerPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 
 	order := &stlb.Order{
@@ -194,7 +202,7 @@ func (c *Client) PlaceTakeProfit(ctx context.Context, market *Market, dir Direct
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) AddMargin(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) AddMargin(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 
 	order := &stlb.Order{
@@ -209,7 +217,7 @@ func (c *Client) AddMargin(ctx context.Context, market *Market, dir Direction, a
 	return c.placeOrder(ctx, market, order, o)
 }
 
-func (c *Client) RemoveMargin(ctx context.Context, market *Market, dir Direction, amount *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+func (c *Client) RemoveMargin(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 
 	order := &stlb.Order{
@@ -254,7 +262,7 @@ func (c *Client) CancelOrder(ctx context.Context, orderHash []byte, opts ...Opti
 	})
 }
 
-func (c *Client) placeOrder(ctx context.Context, market *Market, order *stlb.Order, o clientOptions) (*PlaceOrderResult, error) {
+func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *stlb.Order, o clientOptions) (*PlaceOrderResult, error) {
 	if o.signer == nil {
 		return nil, fmt.Errorf("signer required: use WithSigner()")
 	}
