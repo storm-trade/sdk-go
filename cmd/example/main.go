@@ -72,6 +72,16 @@ func main() {
 		cmdRemoveMargin(ctx)
 	case "info":
 		cmdInfo(ctx)
+	case "intent":
+		cmdIntent(ctx)
+	case "gasless-deposit":
+		cmdGaslessDeposit(ctx)
+	case "gasless-balance":
+		cmdGaslessBalance(ctx)
+	case "gasless-withdraw":
+		cmdGaslessWithdraw(ctx)
+	case "gasless-withdrawals":
+		cmdGaslessWithdrawals(ctx)
 	default:
 		printUsage()
 	}
@@ -99,6 +109,10 @@ Commands:
   remove-margin Remove margin (remove-margin BTC USDT long 500)
   cancel      Cancel order by hash
   info        Show market & vault info (info BTC USDT)
+  intent      Track intent by hash (intent <hash>)
+  gasless-deposit  Deposit to gasless wallet (gasless-deposit TON 1)
+  gasless-balance  Show gasless balance
+  gasless-withdraw Withdraw from gasless (gasless-withdraw TON 0.5)
 
 Environment:
   STORM_SEED            Wallet seed phrase
@@ -159,7 +173,7 @@ func mustClient(ctx context.Context) *storm.Client {
 }
 
 var tonConfigURLs = map[config.Network]string{
-	config.Testnet: "https://ton-blockchain.github.io/testnet-global.config.json",
+	config.Testnet: "https://gist.githubusercontent.com/aSpite/2c97a4b8a8df49a1eb62c86cc657484e/raw/3e2eb65c13c27c48ffa1ccdc91b826b01058457d/config.json",
 	config.Mainnet: "https://ton-blockchain.github.io/global.config.json",
 }
 
@@ -386,6 +400,9 @@ func cmdOrder(ctx context.Context) {
 		}
 		if v, ok := strings.CutPrefix(arg, "--stop="); ok {
 			stopPrice = v
+		}
+		if arg == "--gasless" {
+			opts = append(opts, storm.WithGasless())
 		}
 	}
 
@@ -877,6 +894,84 @@ func cmdInfo(ctx context.Context) {
 func coinFromNano(n int64) *tlb.Coins {
 	c := tlb.FromNanoTON(big.NewInt(n))
 	return &c
+}
+
+func cmdIntent(ctx context.Context) {
+	if len(os.Args) < 3 {
+		log.Fatal("usage: intent <hash>")
+	}
+	client := mustClient(ctx)
+	intent, err := client.GetIntent(ctx, os.Args[2])
+	if err != nil {
+		log.Fatalf("get intent: %v", err)
+	}
+	fmt.Printf("Hash: %s\nDate: %s\nPhase: %s\nMarket: %s\nVault: %s\nSmartAccount: %s\nPaymentMode: %d\n",
+		intent.Hash, intent.Date, intent.ActionPhase, intent.Market, intent.Vault, intent.SmartAccount, intent.PaymentMode)
+}
+
+func cmdGaslessDeposit(ctx context.Context) {
+	if len(os.Args) < 4 {
+		log.Fatal("usage: gasless-deposit <asset> <amount>")
+	}
+	client := mustClient(ctx)
+	asset := os.Args[2]
+	a, err := client.Asset(asset)
+	if err != nil {
+		log.Fatalf("get asset: %v", err)
+	}
+	amount := tlb.MustFromDecimal(os.Args[3], a.Decimals)
+	if err := client.GaslessDeposit(ctx, asset, &amount); err != nil {
+		log.Fatalf("gasless deposit: %v", err)
+	}
+	fmt.Printf("Gasless deposited %s %s\n", os.Args[3], asset)
+}
+
+func cmdGaslessBalance(ctx context.Context) {
+	client := mustClient(ctx)
+	balance, err := client.GetGaslessBalance(ctx)
+	if err != nil {
+		log.Fatalf("gasless balance: %v", err)
+	}
+	if len(balance.Balances) == 0 {
+		fmt.Println("Gasless balance: empty")
+		return
+	}
+	for asset, amount := range balance.Balances {
+		fmt.Printf("  %s: %s\n", asset, amount)
+	}
+}
+
+func cmdGaslessWithdraw(ctx context.Context) {
+	if len(os.Args) < 4 {
+		log.Fatal("usage: gasless-withdraw <asset> <amount>")
+	}
+	client := mustClient(ctx)
+	asset := os.Args[2]
+	a, err := client.Asset(asset)
+	if err != nil {
+		log.Fatalf("get asset: %v", err)
+	}
+	amount := tlb.MustFromDecimal(os.Args[3], a.Decimals)
+	resp, err := client.GaslessWithdraw(ctx, asset, &amount)
+	if err != nil {
+		log.Fatalf("gasless withdraw: %v", err)
+	}
+	fmt.Printf("Withdrawal: status=%s txHash=%s\n", resp.Status, resp.TxHash)
+}
+
+func cmdGaslessWithdrawals(ctx context.Context) {
+	client := mustClient(ctx)
+	withdrawals, err := client.GetGaslessWithdrawals(ctx)
+	if err != nil {
+		log.Fatalf("gasless withdrawals: %v", err)
+	}
+	if len(withdrawals) == 0 {
+		fmt.Println("No withdrawals")
+		return
+	}
+	for _, w := range withdrawals {
+		fmt.Printf("  asset=%s amount=%s status=%s created=%s\n", w.AssetAddress, w.Amount, w.Status, w.CreatedAt)
+	}
 }
 
 func loadEnvFile(path string) {

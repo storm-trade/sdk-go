@@ -103,6 +103,10 @@ func (c *Client) GetBalances(ctx context.Context, opts ...Option) (map[string]in
 	return c.seq.GetBalances(ctx, o.smartAccount.String())
 }
 
+func (c *Client) GetIntent(ctx context.Context, hash string) (*sequencer.SettledAction, error) {
+	return c.seq.GetIntent(ctx, hash)
+}
+
 func (c *Client) GetPositions(ctx context.Context, opts ...Option) ([]sequencer.PositionResponse, error) {
 	o := c.resolveOptions(opts)
 	if o.smartAccount == nil {

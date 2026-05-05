@@ -108,9 +108,18 @@ type TraceResult struct {
 }
 
 type SettledAction struct {
-	Hash        string `json:"hash"`
-	Date        string `json:"date,omitempty"`
-	PaymentMode uint8  `json:"payment_mode,omitempty"`
+	Hash          string          `json:"hash"`
+	Date          string          `json:"date,omitempty"`
+	ActionPhase   string          `json:"action_phase,omitempty"`
+	Market        string          `json:"market,omitempty"`
+	Vault         string          `json:"vault,omitempty"`
+	SmartAccount  string          `json:"smart_account,omitempty"`
+	PaymentMode   uint8           `json:"payment_mode,omitempty"`
+	Price         json.RawMessage `json:"price,omitempty"`
+	CreatedPrice  json.RawMessage `json:"created_price,omitempty"`
+	Order         json.RawMessage `json:"order,omitempty"`
+	FullMessage   json.RawMessage `json:"full_message,omitempty"`
+	OrderRequests json.RawMessage `json:"order_requests,omitempty"`
 }
 
 type SyncPositionRequest struct {
@@ -195,6 +204,16 @@ type GaslessBalance struct {
 	UpdatedAt string            `json:"updated_at"`
 }
 
+type GaslessWithdrawalEntry struct {
+	AssetAddress string `json:"asset_address"`
+	Amount       string `json:"amount"`
+	Status       string `json:"status"`
+	MessageHash  string `json:"message_hash"`
+	CreatedAt    string `json:"created_at"`
+	SentAt       string `json:"sent_at,omitempty"`
+	ExecutedAt   string `json:"executed_at,omitempty"`
+}
+
 type GaslessWithdrawRequest struct {
 	SmartAccount string `json:"sa"`
 	Message      string `json:"message"`
@@ -203,12 +222,12 @@ type GaslessWithdrawRequest struct {
 }
 
 type GaslessWithdrawResponse struct {
-	OK           bool   `json:"ok"`
-	WithdrawalID string `json:"withdrawal_id"`
-	Status       string `json:"status"`
-	TxHash       string `json:"tx_hash"`
-	Amount       string `json:"amount"`
-	Asset        string `json:"asset"`
-	Destination  string `json:"destination"`
-	QueryID      uint64 `json:"query_id"`
+	OK           bool            `json:"ok"`
+	WithdrawalID json.RawMessage `json:"withdrawal_id"`
+	Status       string          `json:"status"`
+	TxHash       string          `json:"tx_hash"`
+	Amount       string          `json:"amount"`
+	Asset        string          `json:"asset"`
+	Destination  string          `json:"destination"`
+	QueryID      uint64          `json:"query_id"`
 }

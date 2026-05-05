@@ -11,7 +11,7 @@ import (
 )
 
 var sequencerURLs = map[config.Network]string{
-	config.Testnet: sequencer.TestnetURL,
+	config.Testnet: "http://localhost:9091",
 	config.Mainnet: sequencer.MainnetURL,
 }
 
