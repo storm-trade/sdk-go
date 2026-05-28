@@ -16,7 +16,7 @@ func IsIntentOpcode(op Opcode) bool {
 }
 
 func IsValidMessage(cell *cell.Cell) bool {
-	sc := cell.BeginParse()
+	sc := cell.MustBeginParse()
 
 	if sc.RefsNum() != 1 {
 		return false

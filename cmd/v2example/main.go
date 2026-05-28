@@ -461,7 +461,7 @@ func cmdOrders(ctx context.Context) {
 
 	if data.Orders != nil && data.Orders.BitsSize()+data.Orders.RefsNum() > 0 {
 		wrapped := cell.BeginCell().MustStoreMaybeRef(data.Orders).EndCell()
-		dict, _ := wrapped.BeginParse().LoadDict(3)
+		dict, _ := wrapped.MustBeginParse().LoadDict(3)
 		if dict == nil {
 			fmt.Println("Limit orders: none")
 		} else {
@@ -491,7 +491,7 @@ func cmdOrders(ctx context.Context) {
 
 	if posCell != nil {
 		var posRef stlb.PositionRef
-		if err := tlb.LoadFromCell(&posRef, posCell.BeginParse()); err != nil {
+		if err := tlb.LoadFromCell(&posRef, posCell.MustBeginParse()); err != nil {
 			fmt.Printf("%s position: parse error: %v\n", label, err)
 		} else {
 			fmt.Printf("\n%s position: size=%s margin=%s\n", label, posRef.Position.Size, posRef.Position.Margin)

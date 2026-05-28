@@ -73,8 +73,8 @@ func (c *Client) GetBufferData(ctx context.Context) (*vault.BufferData, error) {
 }
 
 func (c *Client) GetPositionAddress(ctx context.Context, trader, vammAddr *address.Address) (*address.Address, error) {
-	traderSlice := cell.BeginCell().MustStoreAddr(trader).EndCell().BeginParse()
-	vammSlice := cell.BeginCell().MustStoreAddr(vammAddr).EndCell().BeginParse()
+	traderSlice := cell.BeginCell().MustStoreAddr(trader).EndCell().MustBeginParse()
+	vammSlice := cell.BeginCell().MustStoreAddr(vammAddr).EndCell().MustBeginParse()
 	res, err := c.runGet(ctx, "get_position_address", traderSlice, vammSlice)
 	if err != nil {
 		return nil, err

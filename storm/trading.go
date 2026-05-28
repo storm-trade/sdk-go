@@ -145,7 +145,7 @@ func (c *Client) ClosePositionFull(ctx context.Context, market *config.Market, d
 	}
 
 	var state stlb.PositionState
-	if err := tlb.LoadFromCell(&state, pos.Data.BeginParse()); err != nil {
+	if err := tlb.LoadFromCell(&state, pos.Data.MustBeginParse()); err != nil {
 		return nil, fmt.Errorf("parse position: %w", err)
 	}
 

@@ -190,7 +190,7 @@ func (c *Client) GetRemainMargin(ctx context.Context, oraclePrice *big.Int, posi
 
 func (c *Client) GetPositionManagerAddress(ctx context.Context, trader *address.Address) (*address.Address, error) {
 	traderCell := cell.BeginCell().MustStoreAddr(trader).EndCell()
-	res, err := c.runGet(ctx, "get_position_manager_address", traderCell.BeginParse())
+	res, err := c.runGet(ctx, "get_position_manager_address", traderCell.MustBeginParse())
 	if err != nil {
 		return nil, err
 	}

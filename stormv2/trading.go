@@ -107,8 +107,8 @@ func (c *Client) placeCreateOrder(ctx context.Context, market *config.Market, di
 	var orderMsg *wallet.Message
 	if asset.JettonMaster == nil {
 		body := buildNativeCreateOrderCell(params, *amount)
-		totalValue, _ := amount.Add(&GasCreateOrder)
-		orderMsg = wallet.SimpleMessage(market.VaultAddress, *totalValue, body)
+		totalValue, _ := amount.Add(GasCreateOrder)
+		orderMsg = wallet.SimpleMessage(market.VaultAddress, totalValue, body)
 	} else {
 		jwAddr, err := jetton.NewJettonMasterClient(o.tonAPI, asset.JettonMaster).GetJettonWallet(ctx, o.wallet.WalletAddress())
 		if err != nil {
@@ -192,8 +192,8 @@ func (c *Client) AddMargin(ctx context.Context, market *config.Market, dir confi
 	var orderMsg *wallet.Message
 	if asset.JettonMaster == nil {
 		body := buildAddMarginNativeCell(*amount, uint16(market.AssetIndex), uint64(dir), o.wallet.WalletAddress(), oraclePayload)
-		totalValue, _ := amount.Add(&GasMargin)
-		orderMsg = wallet.SimpleMessage(market.VaultAddress, *totalValue, body)
+		totalValue, _ := amount.Add(GasMargin)
+		orderMsg = wallet.SimpleMessage(market.VaultAddress, totalValue, body)
 	} else {
 		jwAddr, err := jetton.NewJettonMasterClient(o.tonAPI, asset.JettonMaster).GetJettonWallet(ctx, o.wallet.WalletAddress())
 		if err != nil {
