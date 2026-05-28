@@ -1,10 +1,11 @@
 package tlb
 
 import (
+	"math/big"
+
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/tvm/cell"
-	"math/big"
 )
 
 type WhitelistedAddress = int
@@ -36,9 +37,12 @@ type VaultData struct {
 }
 
 func (v *VaultData) GetWhiteListAddress(t WhitelistedAddress) (*address.Address, error) {
-	res := v.WhitelistAddresses.GetByIntKey(big.NewInt(int64(t)))
+	res, err := v.WhitelistAddresses.LoadValueByIntKey(big.NewInt(int64(t)))
+	if err != nil {
+		return nil, err
+	}
 
-	addr, err := res.BeginParse().LoadAddr()
+	addr, err := res.LoadAddr()
 	if err != nil {
 		return nil, err
 	}

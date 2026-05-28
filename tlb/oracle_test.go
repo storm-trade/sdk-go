@@ -16,7 +16,7 @@ func Test_UnpackPriceRef(t *testing.T) {
 	priceRef, err := cell.FromBOC(c)
 	require.Nil(t, err)
 
-	slice := priceRef.BeginParse()
+	slice := priceRef.MustBeginParse()
 
 	price, err := slice.LoadCoins()
 	require.Nil(t, err)

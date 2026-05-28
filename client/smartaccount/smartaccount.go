@@ -52,7 +52,7 @@ func (c *Client) GetStorageData(ctx context.Context) (*smartaccount.AccountData,
 		return nil, fmt.Errorf("account not active")
 	}
 	data := new(smartaccount.AccountData)
-	if err := tlb.LoadFromCell(data, account.State.StateInit.Data.BeginParse()); err != nil {
+	if err := tlb.LoadFromCell(data, account.State.StateInit.Data.MustBeginParse()); err != nil {
 		return nil, err
 	}
 	return data, nil
@@ -67,11 +67,11 @@ func (c *Client) DepositNative(from *wallet.Wallet, owner, vault *address.Addres
 	if init {
 		gas = GasDepositNativeInit
 	}
-	tonAmount, err := amount.Add(&gas)
+	tonAmount, err := amount.Add(gas)
 	if err != nil {
 		return nil, err
 	}
-	msg := wallet.SimpleMessage(vault, *tonAmount, payload)
+	msg := wallet.SimpleMessage(vault, tonAmount, payload)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }
@@ -94,7 +94,7 @@ func (c *Client) DepositJetton(from *wallet.Wallet, owner, vault, jettonMaster *
 	if err != nil {
 		return nil, err
 	}
-	msg := wallet.SimpleMessage(jettonWallet.Address(), *gas.MustAdd(&GasJettonTransfer), transferPayload)
+	msg := wallet.SimpleMessage(jettonWallet.Address(), gas.MustAdd(GasJettonTransfer), transferPayload)
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
 	return tx, err
 }
@@ -223,7 +223,7 @@ func (c *Client) GetKeysData(ctx context.Context) (*smartaccount.KeysData, error
 }
 
 func (c *Client) GetBalance(ctx context.Context, vaultAddress *address.Address) (*big.Int, error) {
-	vaultSlice := cell.BeginCell().MustStoreAddr(vaultAddress).EndCell().BeginParse()
+	vaultSlice := cell.BeginCell().MustStoreAddr(vaultAddress).EndCell().MustBeginParse()
 	res, err := c.runGet(ctx, "get_vault_balance", vaultSlice)
 	if err != nil {
 		return nil, err
@@ -297,7 +297,7 @@ func (c *Client) GetHighloadData(ctx context.Context) (*smartaccount.HighloadDat
 
 func (c *Client) GetPosition(ctx context.Context, ammAddress *address.Address, direction uint8) (*smartaccount.PositionRecord, error) {
 	keyCell := cell.BeginCell().MustStoreAddr(ammAddress).MustStoreUInt(uint64(direction), 1).EndCell()
-	res, err := c.runGet(ctx, "get_position", keyCell.BeginParse())
+	res, err := c.runGet(ctx, "get_position", keyCell.MustBeginParse())
 	if err != nil {
 		return nil, err
 	}
