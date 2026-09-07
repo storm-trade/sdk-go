@@ -95,6 +95,11 @@ func (c *Client) PlaceLimitOrder(ctx context.Context, market *config.Market, dir
 	return c.placeOrder(ctx, market, order, o)
 }
 
+func (c *Client) PlaceStopMarketOrder(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, leverage uint64, stopPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
+	zero := tlb.ZeroCoins
+	return c.PlaceStopLimitOrder(ctx, market, dir, amount, leverage, &zero, stopPrice, opts...)
+}
+
 func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, leverage uint64, limitPrice, stopPrice *tlb.Coins, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
 	zeroCoins := tlb.ZeroCoins
@@ -233,12 +238,22 @@ func (c *Client) RemoveMargin(ctx context.Context, market *config.Market, dir co
 }
 
 func (c *Client) CancelOrder(ctx context.Context, orderHash []byte, opts ...Option) error {
+	_, err := c.CancelOrderWithResult(ctx, orderHash, opts...)
+	return err
+}
+
+type CancelOrderResult struct {
+	Hash     []byte
+	Response *sequencer.PlaceOrderResponse
+}
+
+func (c *Client) CancelOrderWithResult(ctx context.Context, orderHash []byte, opts ...Option) (*CancelOrderResult, error) {
 	o := c.resolveOptions(opts)
-	if o.signer == nil {
-		return fmt.Errorf("signer required: use WithSigner()")
+	if len(o.signer) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("signer required: use WithSigner()")
 	}
 	if o.smartAccount == nil {
-		return fmt.Errorf("smart account required: use WithSmartAccount()")
+		return nil, fmt.Errorf("smart account required: use WithSmartAccount()")
 	}
 
 	cancelMsg := &smartaccount.CancelMessage{
@@ -248,22 +263,23 @@ func (c *Client) CancelOrder(ctx context.Context, orderHash []byte, opts ...Opti
 
 	msgCell, err := tlb.ToCell(cancelMsg)
 	if err != nil {
-		return fmt.Errorf("serialize cancel: %w", err)
+		return nil, fmt.Errorf("serialize cancel: %w", err)
 	}
 
 	signature := msgCell.Sign(o.signer)
 	pubKey := []byte(o.signer.Public().(ed25519.PublicKey))
 
-	return c.seq.CancelOrder(ctx, sequencer.CancelOrderRequest{
+	resp, err := c.seq.CancelOrderWithResult(ctx, sequencer.CancelOrderRequest{
 		SmartAccount: o.smartAccount.String(),
 		Message:      base64.StdEncoding.EncodeToString(msgCell.ToBOC()),
 		PublicKey:    base64.StdEncoding.EncodeToString(pubKey),
 		Signature:    base64.StdEncoding.EncodeToString(signature),
 	})
-}
 
+	return &CancelOrderResult{Hash: msgCell.Hash(), Response: resp}, err
+}
 func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *stlb.Order, o clientOptions) (*PlaceOrderResult, error) {
-	if o.signer == nil {
+	if len(o.signer) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("signer required: use WithSigner()")
 	}
 	if o.smartAccount == nil {
@@ -272,7 +288,7 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 
 	pubKey := []byte(o.signer.Public().(ed25519.PublicKey))
 
-	nextQID, err := c.seq.GetNextQueryID(ctx, o.smartAccount.String())
+	nextQID, err := c.reserveQueryIDs(ctx, o)
 	if err != nil {
 		return nil, fmt.Errorf("get next query ID: %w", err)
 	}
@@ -299,6 +315,7 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 	}
 
 	req := sequencer.PlaceOrderRequest{
+		Builder:      o.builder,
 		SmartAccount: o.smartAccount.String(),
 		Message:      base64.StdEncoding.EncodeToString(intentCell.ToBOC()),
 		PublicKey:    base64.StdEncoding.EncodeToString(pubKey),
@@ -316,9 +333,6 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 	req.OrderRequests = orResult.requests
 
 	resp, err := c.seq.PlaceOrder(ctx, req)
-	if err != nil {
-		return nil, err
-	}
 
 	return &PlaceOrderResult{
 		QueryID:        nextQID,
@@ -328,7 +342,7 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 		TakeProfitID:   orResult.takeProfitID,
 		TakeProfitHash: orResult.takeProfitHash,
 		Response:       resp,
-	}, nil
+	}, err
 }
 
 type orderRequestsResult struct {

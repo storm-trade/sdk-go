@@ -81,6 +81,7 @@ type PositionStateResponse struct {
 }
 
 type PlaceOrderRequest struct {
+	Builder       string               `json:"builder,omitempty"`
 	SmartAccount  string               `json:"sa"`
 	Message       string               `json:"message"`
 	PublicKey     string               `json:"public_key"`
@@ -96,9 +97,11 @@ type SignedOrderRequest struct {
 }
 
 type PlaceOrderResponse struct {
-	OK     bool           `json:"ok"`
-	Trace  *TraceResult   `json:"trace,omitempty"`
-	Intent *SettledAction `json:"intent,omitempty"`
+	Accepted   bool           `json:"accepted,omitempty"`
+	IntentHash string         `json:"intent_hash,omitempty"`
+	OK         bool           `json:"ok"`
+	Trace      *TraceResult   `json:"trace,omitempty"`
+	Intent     *SettledAction `json:"intent,omitempty"`
 }
 
 type TraceResult struct {
@@ -108,6 +111,8 @@ type TraceResult struct {
 }
 
 type SettledAction struct {
+	Status        string          `json:"status,omitempty"`
+	Builder       string          `json:"builder,omitempty"`
 	Hash          string          `json:"hash"`
 	Date          string          `json:"date,omitempty"`
 	ActionPhase   string          `json:"action_phase,omitempty"`
@@ -185,6 +190,8 @@ type BundleID struct {
 }
 
 type Bundle struct {
+	Status        string          `json:"status"`
+	Outcome       *BundleOutcome  `json:"outcome,omitempty"`
 	ID            BundleID        `json:"id"`
 	LeasedQueryID uint64          `json:"leased_query_id"`
 	CreatedAt     string          `json:"created_at"`
@@ -230,4 +237,16 @@ type GaslessWithdrawResponse struct {
 	Asset        string          `json:"asset"`
 	Destination  string          `json:"destination"`
 	QueryID      uint64          `json:"query_id"`
+}
+
+// BundleOutcome is the backend's terminal on-chain result. Byte hashes use JSON base64.
+type BundleOutcome struct {
+	Reason         string `json:"reason,omitempty"`
+	ErrorInterface string `json:"error_interface,omitempty"`
+	ExitCode       int32  `json:"exit_code,omitempty"`
+	ActionCode     int32  `json:"action_code,omitempty"`
+	TxHash         []byte `json:"tx_hash,omitempty"`
+	TxLT           uint64 `json:"tx_lt,omitempty"`
+	BlockSeqno     uint32 `json:"block_seqno,omitempty"`
+	FinalizedAt    int64  `json:"finalized_at,omitempty"`
 }

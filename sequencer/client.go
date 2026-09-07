@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	TestnetURL = "https://api.stage.stormtrade.dev/instant-trading"
-	MainnetURL = "https://api5.storm.tg/instant-trading"
+	TestnetURL = "https://api.stage.stormtrade.dev/v3-node-0"
+	MainnetURL = "https://api.storm.tg/v3-node-0"
 )
 
 type transport interface {

@@ -20,6 +20,7 @@ import (
 	vammclient "github.com/storm-trade/sdk-go/client/vamm"
 	vaultclient "github.com/storm-trade/sdk-go/client/vault"
 	"github.com/storm-trade/sdk-go/config"
+	"github.com/storm-trade/sdk-go/sequencer"
 	"github.com/storm-trade/sdk-go/storm"
 	stlb "github.com/storm-trade/sdk-go/tlb"
 	"github.com/xssnick/tonutils-go/address"
@@ -115,6 +116,8 @@ Commands:
   gasless-withdraw Withdraw from gasless (gasless-withdraw TON 0.5)
 
 Environment:
+  STORM_BUILDER         Registered builder TON address (optional)
+  STORM_V3_URL          Override V3 sequencer base URL (optional)
   STORM_SEED            Wallet seed phrase
   STORM_PRIVATE_KEY     Hex-encoded ED25519 private key
   STORM_NETWORK         testnet (default) or mainnet
@@ -139,6 +142,12 @@ func mustClient(ctx context.Context) *storm.Client {
 	network := parseNetwork()
 	factoryAddr := config.Networks[network].FactoryAddress
 	var opts []storm.Option
+	if builder := os.Getenv("STORM_BUILDER"); builder != "" {
+		opts = append(opts, storm.WithBuilder(builder))
+	}
+	if baseURL := os.Getenv("STORM_V3_URL"); baseURL != "" {
+		opts = append(opts, storm.WithSequencer(sequencer.NewClient(baseURL)))
+	}
 
 	if seed := os.Getenv("STORM_SEED"); seed != "" {
 		api, w := mustTON(ctx, seed, network)
@@ -319,6 +328,12 @@ func cmdDeposit(ctx context.Context) {
 	amount := tlb.MustFromDecimal(os.Args[3], a.Decimals)
 
 	var opts []storm.Option
+	if builder := os.Getenv("STORM_BUILDER"); builder != "" {
+		opts = append(opts, storm.WithBuilder(builder))
+	}
+	if baseURL := os.Getenv("STORM_V3_URL"); baseURL != "" {
+		opts = append(opts, storm.WithSequencer(sequencer.NewClient(baseURL)))
+	}
 	for _, arg := range os.Args[4:] {
 		if arg == "--init" {
 			privKey := client.Signer()
@@ -385,6 +400,12 @@ func cmdOrder(ctx context.Context) {
 	amount := tlb.MustFromDecimal(amountStr, 9)
 
 	var opts []storm.Option
+	if builder := os.Getenv("STORM_BUILDER"); builder != "" {
+		opts = append(opts, storm.WithBuilder(builder))
+	}
+	if baseURL := os.Getenv("STORM_V3_URL"); baseURL != "" {
+		opts = append(opts, storm.WithSequencer(sequencer.NewClient(baseURL)))
+	}
 	var limitPrice, stopPrice string
 	for _, arg := range os.Args[8:] {
 		if v, ok := strings.CutPrefix(arg, "--sl="); ok {

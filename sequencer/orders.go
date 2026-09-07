@@ -16,3 +16,11 @@ func (c *Client) PlaceOrder(ctx context.Context, req PlaceOrderRequest) (*PlaceO
 func (c *Client) CancelOrder(ctx context.Context, req CancelOrderRequest) error {
 	return c.transport.Do(ctx, http.MethodPost, "/order/cancel", req, nil)
 }
+
+func (c *Client) CancelOrderWithResult(ctx context.Context, req CancelOrderRequest) (*PlaceOrderResponse, error) {
+	var result PlaceOrderResponse
+	if err := c.transport.Do(ctx, http.MethodPost, "/order/cancel", req, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}

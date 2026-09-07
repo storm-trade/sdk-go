@@ -4,6 +4,16 @@ Go SDK for [Storm Trade](https://storm.tg) — perpetual futures on TON blockcha
 
 Supports both **v3** (Smart Account, intent-based) and **v2** (direct wallet transactions) protocols.
 
+## Builders V3 (candidate)
+
+V3 supports `storm.WithBuilder(address)`, `storm.WithSequencer(client)`, `GetBuilders`, `GetIntentStatus`, `PlaceStopMarketOrder`, and `CancelOrderWithResult`. `sequencer.GetAccountBundle` exposes terminal bundle status/outcome. Builder attribution is unsigned request metadata, not an extra user fee.
+
+Testnet defaults now use the public stage V3 endpoint, not localhost. Use `STORM_BUILDER` and `STORM_V3_URL` with `cmd/example`; `go run ./cmd/builders registry` and `go run ./cmd/builders intent HASH` perform read-only checks without wallet keys.
+
+`WithQueryID` now honors an explicitly allocated ID. A Client reserves user IDs for concurrent submissions, including attached SL/TP, before sending; separate clients/processes must coordinate allocation externally. On an HTTP failure after signing, order methods return correlation data with the error. Reconcile that hash before creating another economic intent. Neither HTTP 200 nor intent `done` proves on-chain settlement: match the intent to its executor bundle and confirm its outcome/transaction.
+
+Run `go test -race ./...` for the full SDK suite and shared JS/Go signature fixtures. These additions require the reviewed V3 candidate/release; a new version is not claimed here.
+
 ## Installation
 
 ```bash
