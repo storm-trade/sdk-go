@@ -3,6 +3,8 @@ package storm
 import (
 	"crypto/ed25519"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/sequencer"
@@ -11,28 +13,38 @@ import (
 )
 
 var sequencerURLs = map[config.Network]string{
-	config.Testnet: "http://localhost:9091",
+	config.Testnet: sequencer.TestnetURL,
 	config.Mainnet: sequencer.MainnetURL,
 }
 
 type Client struct {
-	network  config.Network
-	seq      *sequencer.Client
-	defaults clientOptions
-	cfg      configLoader
+	queryMu       sync.Mutex
+	queryLeases   map[string]queryLease
+	vaultMu       sync.Mutex
+	checkedVaults map[string]bool
+	network       config.Network
+	seq           *sequencer.Client
+	defaults      clientOptions
+	cfg           configLoader
 }
 
 func NewClient(network config.Network, opts ...Option) *Client {
 	c := &Client{
-		network: network,
-		seq:     sequencer.NewClient(sequencerURLs[network]),
+		network:       network,
+		queryLeases:   make(map[string]queryLease),
+		checkedVaults: make(map[string]bool),
+		seq:           sequencer.NewClient(sequencerURLs[network]),
+		defaults:      clientOptions{clockSkew: 15 * time.Second},
 		cfg: configLoader{
 			network:    network,
-			httpClient: &http.Client{},
+			httpClient: &http.Client{Timeout: 30 * time.Second},
 		},
 	}
 	for _, opt := range opts {
 		opt(&c.defaults)
+	}
+	if c.defaults.sequencer != nil {
+		c.seq = c.defaults.sequencer
 	}
 	return c
 }

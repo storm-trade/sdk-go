@@ -55,6 +55,9 @@ func (c *Client) GetAmmState(ctx context.Context) (*vamm.AmmState, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(res.AsTuple()) < 10 {
+		return nil, fmt.Errorf("get_amm_state returned %d values, expected 10", len(res.AsTuple()))
+	}
 	return &vamm.AmmState{
 		QuoteAssetReserve:                    coinFromBigInt(res.MustInt(0)),
 		BaseAssetReserve:                     coinFromBigInt(res.MustInt(1)),
@@ -74,13 +77,18 @@ func (c *Client) GetAmmStatus(ctx context.Context) (*vamm.AmmStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &vamm.AmmStatus{
+	status := &vamm.AmmStatus{
 		CloseOnly: res.MustInt(0).Int64() != 0,
 		Paused:    res.MustInt(1).Int64() != 0,
-		Stopped:   res.MustInt(2).Int64() != 0,
-		PauseAt:   uint32(res.MustInt(3).Int64()),
-		UnpauseAt: uint32(res.MustInt(4).Int64()),
-	}, nil
+	}
+	if len(res.AsTuple()) > 2 {
+		status.Stopped = res.MustInt(2).Int64() != 0
+	}
+	if len(res.AsTuple()) > 4 {
+		status.PauseAt = uint32(res.MustInt(3).Int64())
+		status.UnpauseAt = uint32(res.MustInt(4).Int64())
+	}
+	return status, nil
 }
 
 func (c *Client) GetExchangeSettings(ctx context.Context) (*vamm.ExchangeSettings, error) {

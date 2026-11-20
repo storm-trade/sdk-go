@@ -21,7 +21,7 @@ func (c *Client) GetAccountState(ctx context.Context, address string) (*AccountS
 
 func (c *Client) GetBalance(ctx context.Context, address, tokenAddress string) (*BalanceResponse, error) {
 	var result BalanceResponse
-	params := url.Values{"token_address": {tokenAddress}}
+	params := url.Values{"token_address": {tokenAddress}, "include_breakdown": {"true"}}
 	if err := c.transport.Do(ctx, http.MethodGet, smartAccountPath(address, "balance")+"?"+params.Encode(), nil, &result); err != nil {
 		return nil, err
 	}
@@ -87,6 +87,10 @@ func (c *Client) GetSentBundles(ctx context.Context, address string) ([]Bundle, 
 	return result, nil
 }
 
-func (c *Client) SyncPosition(ctx context.Context, req SyncPositionRequest) error {
-	return c.transport.Do(ctx, http.MethodPost, "/position/sync", req, nil)
+func (c *Client) GetSmartAccountFees(ctx context.Context) (*SmartAccountFees, error) {
+	var result SmartAccountFees
+	if err := c.transport.Do(ctx, http.MethodGet, "/smartaccount/fees", nil, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
 }

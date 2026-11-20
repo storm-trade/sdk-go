@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	TestnetURL = "https://api.stage.stormtrade.dev/instant-trading"
-	MainnetURL = "https://api5.storm.tg/instant-trading"
+	TestnetURL = "https://api.stage.stormtrade.dev/v3-node-0"
+	MainnetURL = "https://api.storm.tg/v3-node-0"
 )
 
 type transport interface {
@@ -59,7 +59,7 @@ func (t *httpTransport) Do(ctx context.Context, method, path string, body any, r
 		return fmt.Errorf("read response: %w", err)
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		apiErr := &APIError{StatusCode: resp.StatusCode}
 		if err := json.Unmarshal(respBody, apiErr); err != nil {
 			apiErr.Msg = string(respBody)

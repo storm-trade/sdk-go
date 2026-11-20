@@ -20,6 +20,7 @@ import (
 	vammclient "github.com/storm-trade/sdk-go/client/vamm"
 	vaultclient "github.com/storm-trade/sdk-go/client/vault"
 	"github.com/storm-trade/sdk-go/config"
+	"github.com/storm-trade/sdk-go/sequencer"
 	"github.com/storm-trade/sdk-go/storm"
 	stlb "github.com/storm-trade/sdk-go/tlb"
 	"github.com/xssnick/tonutils-go/address"
@@ -115,6 +116,8 @@ Commands:
   gasless-withdraw Withdraw from gasless (gasless-withdraw TON 0.5)
 
 Environment:
+  STORM_BUILDER         Registered builder TON address (optional)
+  STORM_V3_URL          Override V3 sequencer base URL (optional)
   STORM_SEED            Wallet seed phrase
   STORM_PRIVATE_KEY     Hex-encoded ED25519 private key
   STORM_NETWORK         testnet (default) or mainnet
@@ -135,10 +138,26 @@ func parseNetwork() config.Network {
 	}
 }
 
+func show(a *address.Address, bounce bool) string {
+	if a == nil {
+		return ""
+	}
+	c := a.Copy()
+	c.SetBounce(bounce)
+	c.SetTestnetOnly(parseNetwork() == config.Testnet)
+	return c.String()
+}
+
 func mustClient(ctx context.Context) *storm.Client {
 	network := parseNetwork()
 	factoryAddr := config.Networks[network].FactoryAddress
 	var opts []storm.Option
+	if builder := os.Getenv("STORM_BUILDER"); builder != "" {
+		opts = append(opts, storm.WithBuilder(builder))
+	}
+	if baseURL := os.Getenv("STORM_V3_URL"); baseURL != "" {
+		opts = append(opts, storm.WithSequencer(sequencer.NewClient(baseURL)))
+	}
 
 	if seed := os.Getenv("STORM_SEED"); seed != "" {
 		api, w := mustTON(ctx, seed, network)
@@ -155,8 +174,8 @@ func mustClient(ctx context.Context) *storm.Client {
 		if walletVer == "" {
 			walletVer = "v4r2"
 		}
-		fmt.Printf("Network: %s | Wallet: %s (subwallet=%d) | Address: %s\n", os.Getenv("STORM_NETWORK"), walletVer, w.GetSubwalletID(), w.WalletAddress())
-		fmt.Printf("Smart Account: %s\n", saAddr.String())
+		fmt.Printf("Network: %s | Wallet: %s (subwallet=%d) | Address: %s\n", os.Getenv("STORM_NETWORK"), walletVer, w.GetSubwalletID(), show(w.WalletAddress(), false))
+		fmt.Printf("Smart Account: %s\n", show(saAddr, true))
 	}
 
 	if keyHex := os.Getenv("STORM_PRIVATE_KEY"); keyHex != "" {
@@ -173,7 +192,7 @@ func mustClient(ctx context.Context) *storm.Client {
 }
 
 var tonConfigURLs = map[config.Network]string{
-	config.Testnet: "https://gist.githubusercontent.com/aSpite/2c97a4b8a8df49a1eb62c86cc657484e/raw/3e2eb65c13c27c48ffa1ccdc91b826b01058457d/config.json",
+	config.Testnet: "https://ton-blockchain.github.io/testnet-global.config.json",
 	config.Mainnet: "https://ton-blockchain.github.io/global.config.json",
 }
 
@@ -188,11 +207,11 @@ func mustTON(ctx context.Context, seed string, network config.Network) (ton.APIC
 		log.Fatalf("connect to TON: %v", err)
 	}
 
-	api := ton.NewAPIClient(pool, ton.ProofCheckPolicyUnsafe).WithRetry(10)
+	api := ton.NewAPIClient(pool, ton.ProofCheckPolicyUnsafe).WithRetryTimeout(10, 0)
 	words := strings.Split(seed, " ")
 
 	ver := walletVersion(network)
-	w, err := wallet.FromSeed(api, words, ver)
+	w, err := wallet.FromSeedWithOptions(api, words, ver)
 	if err != nil {
 		log.Fatalf("wallet from seed: %v", err)
 	}
@@ -240,6 +259,9 @@ func walletVersion(network config.Network) wallet.VersionConfig {
 
 func cmdKeygen() {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	for err == nil && pub[0] == 0 {
+		pub, priv, err = ed25519.GenerateKey(rand.Reader)
+	}
 	if err != nil {
 		log.Fatalf("generate key: %v", err)
 	}
@@ -319,6 +341,12 @@ func cmdDeposit(ctx context.Context) {
 	amount := tlb.MustFromDecimal(os.Args[3], a.Decimals)
 
 	var opts []storm.Option
+	if builder := os.Getenv("STORM_BUILDER"); builder != "" {
+		opts = append(opts, storm.WithBuilder(builder))
+	}
+	if baseURL := os.Getenv("STORM_V3_URL"); baseURL != "" {
+		opts = append(opts, storm.WithSequencer(sequencer.NewClient(baseURL)))
+	}
 	for _, arg := range os.Args[4:] {
 		if arg == "--init" {
 			privKey := client.Signer()
@@ -344,12 +372,7 @@ func cmdWithdraw(ctx context.Context) {
 	asset := os.Args[2]
 	client := mustClient(ctx)
 
-	a, err := client.Asset(asset)
-	if err != nil {
-		log.Fatalf("get asset: %v", err)
-	}
-
-	amount := tlb.MustFromDecimal(os.Args[3], a.Decimals)
+	amount := tlb.MustFromDecimal(os.Args[3], 9)
 	if err := client.Withdraw(ctx, asset, &amount); err != nil {
 		log.Fatalf("withdraw: %v", err)
 	}
@@ -385,6 +408,12 @@ func cmdOrder(ctx context.Context) {
 	amount := tlb.MustFromDecimal(amountStr, 9)
 
 	var opts []storm.Option
+	if builder := os.Getenv("STORM_BUILDER"); builder != "" {
+		opts = append(opts, storm.WithBuilder(builder))
+	}
+	if baseURL := os.Getenv("STORM_V3_URL"); baseURL != "" {
+		opts = append(opts, storm.WithSequencer(sequencer.NewClient(baseURL)))
+	}
 	var limitPrice, stopPrice string
 	for _, arg := range os.Args[8:] {
 		if v, ok := strings.CutPrefix(arg, "--sl="); ok {
@@ -715,7 +744,7 @@ func cmdInfo(ctx context.Context) {
 		if err != nil {
 			fmt.Printf("[GetPositionManagerAddress] ERROR: %v\n", err)
 		} else {
-			fmt.Printf("[GetPositionManagerAddress] %s\n", pmAddr)
+			fmt.Printf("[GetPositionManagerAddress] %s\n", show(pmAddr, true))
 		}
 	}
 
@@ -746,14 +775,14 @@ func cmdInfo(ctx context.Context) {
 		if err != nil {
 			fmt.Printf("[GetLpMinterAddress] ERROR: %v\n", err)
 		} else {
-			fmt.Printf("[GetLpMinterAddress] %s\n", lpMinter)
+			fmt.Printf("[GetLpMinterAddress] %s\n", show(lpMinter, true))
 		}
 
 		vammAddr, err := vc.GetVAMMAddress(ctx, market.AssetIndex)
 		if err != nil {
 			fmt.Printf("[GetVAMMAddress(%d)] ERROR: %v\n", market.AssetIndex, err)
 		} else {
-			fmt.Printf("[GetVAMMAddress(%d)] %s\n", market.AssetIndex, vammAddr)
+			fmt.Printf("[GetVAMMAddress(%d)] %s\n", market.AssetIndex, show(vammAddr, true))
 		}
 
 		if saAddr != nil {
@@ -761,7 +790,7 @@ func cmdInfo(ctx context.Context) {
 			if err != nil {
 				fmt.Printf("[GetPositionAddress] ERROR: %v\n", err)
 			} else {
-				fmt.Printf("[GetPositionAddress] %s\n", posAddr)
+				fmt.Printf("[GetPositionAddress] %s\n", show(posAddr, true))
 			}
 		}
 	}
@@ -776,7 +805,7 @@ func cmdInfo(ctx context.Context) {
 		if err != nil {
 			fmt.Printf("[GetFactoryData] ERROR: %v\n", err)
 		} else {
-			fmt.Printf("[GetFactoryData] admin=%s timeout=%d version=%d\n", factoryData.AdminAddress, factoryData.HighloadTimeout, factoryData.Version)
+			fmt.Printf("[GetFactoryData] admin=%s timeout=%d version=%d\n", show(factoryData.AdminAddress, true), factoryData.HighloadTimeout, factoryData.Version)
 		}
 
 		minFees, err := factory.GetMinFees(ctx)
@@ -792,7 +821,7 @@ func cmdInfo(ctx context.Context) {
 
 	if saAddr != nil && tonAPI != nil {
 		fmt.Println()
-		fmt.Printf("=== Smart Account: %s ===\n\n", saAddr)
+		fmt.Printf("=== Smart Account: %s ===\n\n", show(saAddr, true))
 
 		saClient := smartaccount.NewClient(tonAPI, saAddr)
 
@@ -800,7 +829,7 @@ func cmdInfo(ctx context.Context) {
 		if err != nil {
 			fmt.Printf("[GetNftData] ERROR: %v\n", err)
 		} else {
-			fmt.Printf("[GetNftData] init=%v index=%s owner=%s collection=%s\n", nftData.Init, nftData.Index, nftData.OwnerAddress, nftData.CollectionAddress)
+			fmt.Printf("[GetNftData] init=%v index=%s owner=%s collection=%s\n", nftData.Init, nftData.Index, show(nftData.OwnerAddress, false), show(nftData.CollectionAddress, true))
 		}
 
 		keysData, err := saClient.GetKeysData(ctx)
@@ -882,7 +911,7 @@ func cmdInfo(ctx context.Context) {
 				if err != nil {
 					fmt.Printf("[GetPositionManagerData] ERROR: %v\n", err)
 				} else {
-					fmt.Printf("[GetPositionManagerData] trader=%s vault=%s vamm=%s\n", pmData.TraderAddress, pmData.VaultAddress, pmData.VammAddress)
+					fmt.Printf("[GetPositionManagerData] trader=%s vault=%s vamm=%s\n", show(pmData.TraderAddress, false), show(pmData.VaultAddress, true), show(pmData.VammAddress, true))
 					fmt.Printf("  hasLong=%v hasShort=%v hasOrders=%v ordersBitset=%d\n",
 						pmData.LongPosition != nil, pmData.ShortPosition != nil, pmData.Orders != nil, pmData.OrdersBitset)
 				}

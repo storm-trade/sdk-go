@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/matcher"
@@ -24,16 +25,14 @@ type v2NetworkConfig struct {
 
 var v2Networks = map[config.Network]v2NetworkConfig{
 	config.Testnet: {
-		matcherURL:      matcher.TestnetURL,
-		oracleURL:       oracle.TestnetURL,
-		executorAddress: address.MustParseAddr("EQAkGT4Uwl8KFix3uKxfJE0SOcDqZWhTSXYFvb2wa6HDjdJv"),
-		executorFee:     tlb.MustFromTON("0.05"),
+		matcherURL: matcher.TestnetURL,
+		oracleURL:  oracle.TestnetURL,
 	},
 	config.Mainnet: {
 		matcherURL:      matcher.MainnetURL,
 		oracleURL:       oracle.MainnetURL,
-		executorAddress: address.MustParseAddr("UQB2OpR9gqb6lmiinABLjt1ZDGjHV6XO9S-DqzEv2OKIMkUo"),
-		executorFee:     tlb.MustFromTON("0.0625"),
+		executorAddress: address.MustParseAddr("UQCefmnNDYymiaYfPrulfl3IVUhKTENdh4xYtu2FIqdfSFTR"),
+		executorFee:     tlb.MustFromTON("0.015"),
 	},
 }
 
@@ -54,7 +53,7 @@ func NewClient(network config.Network, opts ...Option) *Client {
 		network:    network,
 		matcher:    matcher.NewClient(nc.matcherURL),
 		oracle:     oracle.NewClient(nc.oracleURL),
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 	for _, opt := range opts {
 		opt(&c.defaults)
@@ -129,9 +128,4 @@ func (c *Client) TonAPI() ton.APIClientWrapped {
 
 func (c *Client) Wallet() *wallet.Wallet {
 	return c.defaults.wallet
-}
-
-func (c *Client) executorFeeMsg() *wallet.Message {
-	nc := v2Networks[c.network]
-	return wallet.SimpleMessage(nc.executorAddress, nc.executorFee, nil)
 }

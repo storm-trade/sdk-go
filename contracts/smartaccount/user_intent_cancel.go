@@ -21,7 +21,7 @@ func (msg *CancelMessage) Hash() (string, error) {
 }
 
 type SignedCancelMessage struct {
-	_         tlb.Magic      `tlb:"#db3ee02c" json:"_"`
+	_         tlb.Magic      `tlb:"#db3ee02c"`
 	Message   *CancelMessage `tlb:"^" json:"message"`
 	PublicKey []byte         `tlb:"bits 256" json:"public_key"`
 	Signature []byte         `tlb:"bits 512" json:"signature"`

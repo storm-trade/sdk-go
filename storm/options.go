@@ -2,6 +2,7 @@ package storm
 
 import (
 	"crypto/ed25519"
+	"github.com/storm-trade/sdk-go/sequencer"
 	"time"
 
 	"github.com/xssnick/tonutils-go/address"
@@ -13,6 +14,8 @@ import (
 type Option func(*clientOptions)
 
 type clientOptions struct {
+	builder      string
+	sequencer    *sequencer.Client
 	signer       ed25519.PrivateKey
 	smartAccount *address.Address
 	gasless      bool
@@ -23,8 +26,17 @@ type clientOptions struct {
 	wallet       *wallet.Wallet
 	stopLoss     *tlb.Coins
 	takeProfit   *tlb.Coins
+	worstPrice   *tlb.Coins
 	expiration   *uint32
 	queryID      *uint64
+}
+
+func WithBuilder(builder string) Option {
+	return func(o *clientOptions) { o.builder = builder }
+}
+
+func WithSequencer(client *sequencer.Client) Option {
+	return func(o *clientOptions) { o.sequencer = client }
 }
 
 func WithSigner(key ed25519.PrivateKey) Option {
@@ -65,6 +77,10 @@ func WithStopLoss(price *tlb.Coins) Option {
 
 func WithTakeProfit(price *tlb.Coins) Option {
 	return func(o *clientOptions) { o.takeProfit = price }
+}
+
+func WithWorstPrice(price *tlb.Coins) Option {
+	return func(o *clientOptions) { o.worstPrice = price }
 }
 
 func WithExpiration(exp uint32) Option {

@@ -2,6 +2,7 @@ package tlb
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -190,7 +191,7 @@ func (o *Order) UnmarshalJSON(value []byte) error {
 
 		o.Value = payload
 	default:
-		panic("unexpected order type")
+		return fmt.Errorf("unknown order type %q", str.Type)
 	}
 
 	return nil

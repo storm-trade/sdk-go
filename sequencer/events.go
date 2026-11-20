@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+
+	tonaddress "github.com/xssnick/tonutils-go/address"
 )
 
 func buildEventsQuery(filter EventsFilter) string {
@@ -19,7 +22,7 @@ func buildEventsQuery(filter EventsFilter) string {
 		params.Set("event_type", filter.EventType)
 	}
 	if filter.Order != "" {
-		params.Set("order", filter.Order)
+		params.Set("order", strings.ToUpper(filter.Order))
 	}
 	if len(params) == 0 {
 		return ""
@@ -37,8 +40,14 @@ func (c *Client) GetEvents(ctx context.Context, filter EventsFilter) ([]Event, e
 }
 
 func (c *Client) GetAccountEvents(ctx context.Context, address string, filter EventsFilter) ([]Event, error) {
+	sa, err := tonaddress.ParseRawAddr(address)
+	if err != nil {
+		if sa, err = tonaddress.ParseAddr(address); err != nil {
+			return nil, err
+		}
+	}
 	var result []Event
-	path := smartAccountPath(address, "events") + buildEventsQuery(filter)
+	path := smartAccountPath(sa.StringRaw(), "events") + buildEventsQuery(filter)
 	if err := c.transport.Do(ctx, http.MethodGet, path, nil, &result); err != nil {
 		return nil, err
 	}
