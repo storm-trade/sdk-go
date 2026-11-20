@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/xssnick/tonutils-go/tvm/cell"
 )
@@ -22,15 +23,26 @@ type Client struct {
 }
 
 func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL, httpClient: &http.Client{}}
+	return &Client{baseURL: baseURL, httpClient: &http.Client{Timeout: 30 * time.Second}}
+}
+
+type Pause struct {
+	InPause          bool  `json:"inPause"`
+	PauseAt          int64 `json:"pauseAt"`
+	UnpauseAt        int64 `json:"unpauseAt"`
+	ClosestPauseAt   int64 `json:"closestPauseAt"`
+	ClosestUnpauseAt int64 `json:"closestUnpauseAt"`
+	PausedAt         int64 `json:"pausedAt"`
 }
 
 type SignedPrice struct {
 	PriceRef      *cell.Cell
 	SignaturesRef *cell.Cell
+	Pause
 }
 
 type priceResponse struct {
+	Pause
 	ResultMessage struct {
 		PriceRef      string `json:"price_ref"`
 		SignaturesRef string `json:"signatures_ref"`
@@ -74,7 +86,7 @@ func (c *Client) GetSignedPrice(ctx context.Context, symbol string) (*SignedPric
 		return nil, fmt.Errorf("parse signatures_ref: %w", err)
 	}
 
-	return &SignedPrice{PriceRef: priceRef, SignaturesRef: signaturesRef}, nil
+	return &SignedPrice{PriceRef: priceRef, SignaturesRef: signaturesRef, Pause: pr.Pause}, nil
 }
 
 func BuildSimplePayload(price *SignedPrice) *cell.Cell {

@@ -14,6 +14,7 @@ import (
 	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/stormv2"
 	stlb "github.com/storm-trade/sdk-go/tlb"
+	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/liteclient"
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/ton"
@@ -91,6 +92,16 @@ func parseNetwork() config.Network {
 	}
 }
 
+func show(a *address.Address, bounce bool) string {
+	if a == nil {
+		return ""
+	}
+	c := a.Copy()
+	c.SetBounce(bounce)
+	c.SetTestnetOnly(parseNetwork() == config.Testnet)
+	return c.String()
+}
+
 func parseDirection(s string) config.Direction {
 	switch s {
 	case "long":
@@ -126,7 +137,7 @@ func mustClient(ctx context.Context) *stormv2.Client {
 			walletVer = "v4r2"
 		}
 		fmt.Printf("Network: %s | Wallet: %s (subwallet=%d) | Address: %s\n",
-			os.Getenv("STORM_NETWORK"), walletVer, w.GetSubwalletID(), w.WalletAddress())
+			os.Getenv("STORM_NETWORK"), walletVer, w.GetSubwalletID(), show(w.WalletAddress(), false))
 	}
 
 	return stormv2.NewClient(network, opts...)
@@ -138,11 +149,11 @@ func mustTON(ctx context.Context, seed string, network config.Network) (ton.APIC
 		log.Fatalf("connect to TON: %v", err)
 	}
 
-	api := ton.NewAPIClient(pool, ton.ProofCheckPolicyUnsafe).WithRetry(10)
+	api := ton.NewAPIClient(pool, ton.ProofCheckPolicyUnsafe).WithRetryTimeout(10, 0)
 	words := strings.Split(seed, " ")
 
 	ver := walletVersion(network)
-	w, err := wallet.FromSeed(api, words, ver)
+	w, err := wallet.FromSeedWithOptions(api, words, ver)
 	if err != nil {
 		log.Fatalf("wallet from seed: %v", err)
 	}
@@ -435,8 +446,8 @@ func cmdOrders(ctx context.Context) {
 		log.Fatal("wallet required")
 	}
 
-	fmt.Printf("Wallet:  %s\n", w.WalletAddress())
-	fmt.Printf("Vault:   %s\n", market.VaultAddress)
+	fmt.Printf("Wallet:  %s\n", show(w.WalletAddress(), false))
+	fmt.Printf("Vault:   %s\n", show(market.VaultAddress, true))
 	fmt.Printf("AssetIndex: %d\n", market.AssetIndex)
 
 	vc := vaultclient.NewClient(o, market.VaultAddress)
@@ -449,7 +460,7 @@ func cmdOrders(ctx context.Context) {
 		log.Fatalf("get PM address: %v", err)
 	}
 
-	fmt.Printf("PM:      %s\n", pmAddr)
+	fmt.Printf("PM:      %s\n", show(pmAddr, true))
 
 	pm := pmclient.NewClient(o, pmAddr)
 	data, err := pm.GetPositionManagerData(ctx)

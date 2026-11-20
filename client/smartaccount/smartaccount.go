@@ -72,8 +72,7 @@ func (c *Client) DepositNative(from *wallet.Wallet, owner, vault *address.Addres
 		return nil, err
 	}
 	msg := wallet.SimpleMessage(vault, tonAmount, payload)
-	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
-	return tx, err
+	return send(from, msg)
 }
 
 func (c *Client) DepositJetton(from *wallet.Wallet, owner, vault, jettonMaster *address.Address, amount *tlb.Coins, init bool, publicKeys ...smartaccount.PublicKey) (*tlb.Transaction, error) {
@@ -95,8 +94,7 @@ func (c *Client) DepositJetton(from *wallet.Wallet, owner, vault, jettonMaster *
 		return nil, err
 	}
 	msg := wallet.SimpleMessage(jettonWallet.Address(), gas.MustAdd(GasJettonTransfer), transferPayload)
-	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
-	return tx, err
+	return send(from, msg)
 }
 
 func (c *Client) AddPublicKey(from *wallet.Wallet, publicKey smartaccount.PublicKey) (*tlb.Transaction, error) {
@@ -109,8 +107,7 @@ func (c *Client) AddPublicKey(from *wallet.Wallet, publicKey smartaccount.Public
 		return nil, err
 	}
 	msg := wallet.SimpleMessage(c.addr, GasKeyOperation, payloadCell)
-	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
-	return tx, err
+	return send(from, msg)
 }
 
 func (c *Client) RemovePublicKey(from *wallet.Wallet, publicKey smartaccount.PublicKey) (*tlb.Transaction, error) {
@@ -123,8 +120,7 @@ func (c *Client) RemovePublicKey(from *wallet.Wallet, publicKey smartaccount.Pub
 		return nil, err
 	}
 	msg := wallet.SimpleMessage(c.addr, GasKeyOperation, payloadCell)
-	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
-	return tx, err
+	return send(from, msg)
 }
 
 func (c *Client) RemoveAllExceptCurrentPublicKey(from *wallet.Wallet, publicKey smartaccount.PublicKey) (*tlb.Transaction, error) {
@@ -137,8 +133,7 @@ func (c *Client) RemoveAllExceptCurrentPublicKey(from *wallet.Wallet, publicKey 
 		return nil, err
 	}
 	msg := wallet.SimpleMessage(c.addr, GasKeyOperation, payloadCell)
-	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
-	return tx, err
+	return send(from, msg)
 }
 
 func (c *Client) Withdraw(from *wallet.Wallet, vault *address.Address, amount *tlb.Coins) (*tlb.Transaction, error) {
@@ -152,7 +147,14 @@ func (c *Client) Withdraw(from *wallet.Wallet, vault *address.Address, amount *t
 		return nil, err
 	}
 	msg := wallet.SimpleMessage(c.addr, GasWithdraw, payloadCell)
+	return send(from, msg)
+}
+
+func send(from *wallet.Wallet, msg *wallet.Message) (*tlb.Transaction, error) {
 	tx, _, err := from.SendWaitTransaction(context.Background(), msg)
+	if err == nil && tx.OutMsgCount == 0 {
+		err = fmt.Errorf("wallet transaction %x sent no message: check the wallet balance", tx.Hash)
+	}
 	return tx, err
 }
 

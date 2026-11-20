@@ -2,15 +2,20 @@ package storm
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/storm-trade/sdk-go/contracts/hw"
+	"net/http"
+
+	"github.com/storm-trade/sdk-go/contracts/smartaccount"
+	"github.com/storm-trade/sdk-go/sequencer"
 )
 
-// IDs are reserved before sending, including on an unknown HTTP outcome. Applications
-// sharing an account across processes must allocate IDs themselves with WithQueryID.
+type queryLease struct {
+	next uint64
+	hash string
+}
+
 func (c *Client) reserveQueryIDs(ctx context.Context, o clientOptions) (uint64, error) {
-	c.queryMu.Lock()
-	defer c.queryMu.Unlock()
 	var next uint64
 	if o.queryID != nil {
 		next = *o.queryID
@@ -20,8 +25,15 @@ func (c *Client) reserveQueryIDs(ctx context.Context, o clientOptions) (uint64, 
 		if err != nil {
 			return 0, err
 		}
-		if local := c.nextQueryIDs[o.smartAccount.StringRaw()]; local > next {
-			next = local
+		if l := c.queryLeases[o.smartAccount.StringRaw()]; l.next > next {
+			st, err := c.seq.GetIntentStatus(ctx, l.hash)
+			var apiErr *sequencer.APIError
+			if err != nil && !(errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound) {
+				return 0, err
+			}
+			if err == nil && st.Status != "failed" {
+				next = l.next
+			}
 		}
 	}
 	count := uint64(1)
@@ -31,12 +43,9 @@ func (c *Client) reserveQueryIDs(ctx context.Context, o clientOptions) (uint64, 
 	if o.takeProfit != nil {
 		count++
 	}
-	if next >= uint64(hw.MaxQueryId) || count > uint64(hw.MaxQueryId)-next {
+	maxID := smartaccount.MaxUserQueryID.Seqno()
+	if next > maxID || count-1 > maxID-next {
 		return 0, fmt.Errorf("user query ID range exhausted")
-	}
-	key := o.smartAccount.StringRaw()
-	if next+count > c.nextQueryIDs[key] {
-		c.nextQueryIDs[key] = next + count
 	}
 	return next, nil
 }

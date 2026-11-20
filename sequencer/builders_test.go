@@ -15,7 +15,7 @@ func TestBuildersAndIntentStatus(t *testing.T) {
 		case "/builders":
 			w.Write([]byte(`[{"builder":"0:abc","rebate":10000000,"fee_earned":"18446744073709551615","active":true,"created_at":1780000000000,"updated_at":1780000000000}]`))
 		case "/intent/abc/status":
-			w.Write([]byte(`{"status":"failed","error":"emulation","code":"EMULATE_ERROR","contract_exit_code":171,"ts":1780000000000}`))
+			w.Write([]byte(`{"status":"failed","error":"emulation","code":"QUERY_ID_MISMATCH","contract_exit_code":171,"ts":1795081446}`))
 		case "/order/place":
 			w.Write([]byte(`{"ok":true,"accepted":true,"intent_hash":"abc"}`))
 		default:
@@ -31,6 +31,7 @@ func TestBuildersAndIntentStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "failed", status.Status)
 	require.Equal(t, 171, status.ContractExitCode)
+	require.Equal(t, int64(1795081446), status.Timestamp)
 	submitted, err := c.PlaceOrder(context.Background(), PlaceOrderRequest{})
 	require.NoError(t, err)
 	require.True(t, submitted.Accepted)

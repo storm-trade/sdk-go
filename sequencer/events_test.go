@@ -19,7 +19,7 @@ func TestClient_GetEvents(t *testing.T) {
 	defer server.Close()
 
 	c := NewClient(server.URL)
-	events, err := c.GetEvents(context.Background(), EventsFilter{Limit: 2, Order: "ASC"})
+	events, err := c.GetEvents(context.Background(), EventsFilter{Limit: 2, Order: "asc"})
 	require.NoError(t, err)
 	require.Len(t, events, 1)
 	require.Equal(t, uint64(208), events[0].Sequence)
@@ -35,14 +35,14 @@ func TestClient_GetEvents(t *testing.T) {
 
 func TestClient_GetAccountEvents(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/smartaccount/0:test/events", r.URL.Path)
+		require.Equal(t, "/smartaccount/0:7c8ebd558c90e8c81771f8db66e12582b4a223b2e1c03a18cae3e8770b835812/events", r.URL.Path)
 		require.Equal(t, "trade_notification_v2", r.URL.Query().Get("event_type"))
 		w.Write([]byte(`[{"sequence":207,"timestamp":1773342135009,"hash":"e45eba0f","account":"0:test","tx_status":{"success":true,"exit_code":0,"action_result_code":0},"sender":"0:a364f3ae","type":"TRADE_NOTIFICATION_V2","payload":{"query_id":1773342133,"asset_id":47}}]`))
 	}))
 	defer server.Close()
 
 	c := NewClient(server.URL)
-	events, err := c.GetAccountEvents(context.Background(), "0:test", EventsFilter{
+	events, err := c.GetAccountEvents(context.Background(), "EQB8jr1VjJDoyBdx-Ntm4SWCtKIjsuHAOhjK4-h3C4NYEh3N", EventsFilter{
 		EventType: "trade_notification_v2",
 	})
 	require.NoError(t, err)

@@ -44,7 +44,7 @@ func run() error {
 		if len(os.Args) != 3 {
 			return fmt.Errorf("bundles requires a Smart Account address")
 		}
-		value, err = c.GetAccountBundles(ctx, os.Args[2])
+		value, err = c.GetAccountBundles(ctx, os.Args[2], sequencer.BundlesFilter{})
 	case "bundle":
 		if len(os.Args) != 4 {
 			return fmt.Errorf("bundle requires SA and executor query ID")

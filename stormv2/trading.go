@@ -43,6 +43,13 @@ func (c *Client) requireWalletAndAPI(o clientOptions) error {
 	return nil
 }
 
+func requireCurrentVault(market *config.Market) error {
+	if config.LegacyAssets[market.SettlementToken] {
+		return fmt.Errorf("market %s on %s is on a retired vault and cannot be traded", market.Name, market.SettlementToken)
+	}
+	return nil
+}
+
 func resolveQueryID(o clientOptions) uint64 {
 	if o.queryID != nil {
 		return *o.queryID
@@ -53,7 +60,7 @@ func resolveQueryID(o clientOptions) uint64 {
 func defaultExpiration(orderType uint64) uint32 {
 	switch orderType {
 	case orderTypeMarket:
-		return uint32(time.Now().Add(15 * time.Minute).Unix())
+		return uint32(time.Now().Add(120 * time.Second).Unix())
 	default:
 		return uint32(time.Now().Add(60 * 24 * time.Hour).Unix())
 	}
@@ -62,6 +69,9 @@ func defaultExpiration(orderType uint64) uint32 {
 func (c *Client) placeCreateOrder(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, leverage uint64, orderType uint64, limitPrice, stopPrice tlb.Coins, opts []Option) (*TxResult, error) {
 	o := c.resolveOptions(opts)
 	if err := c.requireWalletAndAPI(o); err != nil {
+		return nil, err
+	}
+	if err := requireCurrentVault(market); err != nil {
 		return nil, err
 	}
 
@@ -107,7 +117,10 @@ func (c *Client) placeCreateOrder(ctx context.Context, market *config.Market, di
 	var orderMsg *wallet.Message
 	if asset.JettonMaster == nil {
 		body := buildNativeCreateOrderCell(params, *amount)
-		totalValue, _ := amount.Add(GasCreateOrder)
+		totalValue, err := amount.Add(GasCreateOrder)
+		if err != nil {
+			return nil, err
+		}
 		orderMsg = wallet.SimpleMessage(market.VaultAddress, totalValue, body)
 	} else {
 		jwAddr, err := jetton.NewJettonMasterClient(o.tonAPI, asset.JettonMaster).GetJettonWallet(ctx, o.wallet.WalletAddress())
@@ -137,6 +150,9 @@ func (c *Client) PlaceTakeProfit(ctx context.Context, market *config.Market, dir
 func (c *Client) placeSLTP(ctx context.Context, market *config.Market, dir config.Direction, size *tlb.Coins, triggerPrice tlb.Coins, orderType uint64, opts []Option) (*TxResult, error) {
 	o := c.resolveOptions(opts)
 	if err := c.requireWalletAndAPI(o); err != nil {
+		return nil, err
+	}
+	if err := requireCurrentVault(market); err != nil {
 		return nil, err
 	}
 
@@ -170,12 +186,15 @@ func (c *Client) CancelOrder(ctx context.Context, market *config.Market, dir con
 
 	body := buildCancelCell(orderType, orderIndex, uint64(dir), o.wallet.WalletAddress())
 	orderMsg := wallet.SimpleMessage(pmAddr, GasCancelOrder, body)
-	return c.sendWithFee(ctx, o.wallet, orderMsg)
+	return c.send(ctx, o.wallet, orderMsg)
 }
 
 func (c *Client) AddMargin(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, opts ...Option) (*TxResult, error) {
 	o := c.resolveOptions(opts)
 	if err := c.requireWalletAndAPI(o); err != nil {
+		return nil, err
+	}
+	if err := requireCurrentVault(market); err != nil {
 		return nil, err
 	}
 
@@ -192,7 +211,10 @@ func (c *Client) AddMargin(ctx context.Context, market *config.Market, dir confi
 	var orderMsg *wallet.Message
 	if asset.JettonMaster == nil {
 		body := buildAddMarginNativeCell(*amount, uint16(market.AssetIndex), uint64(dir), o.wallet.WalletAddress(), oraclePayload)
-		totalValue, _ := amount.Add(GasMargin)
+		totalValue, err := amount.Add(GasMargin)
+		if err != nil {
+			return nil, err
+		}
 		orderMsg = wallet.SimpleMessage(market.VaultAddress, totalValue, body)
 	} else {
 		jwAddr, err := jetton.NewJettonMasterClient(o.tonAPI, asset.JettonMaster).GetJettonWallet(ctx, o.wallet.WalletAddress())
@@ -204,12 +226,15 @@ func (c *Client) AddMargin(ctx context.Context, market *config.Market, dir confi
 		orderMsg = wallet.SimpleMessage(jwAddr.Address(), GasMargin, body)
 	}
 
-	return c.sendWithFee(ctx, o.wallet, orderMsg)
+	return c.send(ctx, o.wallet, orderMsg)
 }
 
 func (c *Client) RemoveMargin(ctx context.Context, market *config.Market, dir config.Direction, amount *tlb.Coins, opts ...Option) (*TxResult, error) {
 	o := c.resolveOptions(opts)
 	if err := c.requireWalletAndAPI(o); err != nil {
+		return nil, err
+	}
+	if err := requireCurrentVault(market); err != nil {
 		return nil, err
 	}
 
@@ -225,14 +250,23 @@ func (c *Client) RemoveMargin(ctx context.Context, market *config.Market, dir co
 
 	body := buildRemoveMarginCell(uint64(dir), *amount, o.wallet.WalletAddress(), oraclePayload)
 	orderMsg := wallet.SimpleMessage(pmAddr, GasMargin, body)
-	return c.sendWithFee(ctx, o.wallet, orderMsg)
+	return c.send(ctx, o.wallet, orderMsg)
 }
 
 func (c *Client) sendWithFee(ctx context.Context, w *wallet.Wallet, orderMsg *wallet.Message) (*TxResult, error) {
-	feeMsg := c.executorFeeMsg()
-	tx, _, err := w.SendManyWaitTransaction(ctx, []*wallet.Message{orderMsg, feeMsg})
+	if nc := v2Networks[c.network]; nc.executorAddress != nil {
+		return c.send(ctx, w, orderMsg, wallet.SimpleMessage(nc.executorAddress, nc.executorFee, nil))
+	}
+	return c.send(ctx, w, orderMsg)
+}
+
+func (c *Client) send(ctx context.Context, w *wallet.Wallet, msgs ...*wallet.Message) (*TxResult, error) {
+	tx, _, err := w.SendManyWaitTransaction(ctx, msgs)
 	if err != nil {
 		return nil, err
+	}
+	if tx.OutMsgCount == 0 {
+		return nil, fmt.Errorf("wallet transaction %x sent no message: check the wallet balance", tx.Hash)
 	}
 	return &TxResult{Hash: hex.EncodeToString(tx.Hash)}, nil
 }

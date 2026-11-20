@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 const (
 	TestnetURL = "https://api.stage.stormtrade.dev"
-	MainnetURL = "https://api5.storm.tg"
+	MainnetURL = "https://api.storm.tg"
 )
 
 type Client struct {
@@ -20,7 +21,7 @@ type Client struct {
 }
 
 func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL, httpClient: &http.Client{}}
+	return &Client{baseURL: baseURL, httpClient: &http.Client{Timeout: 30 * time.Second}}
 }
 
 type BroadcastRequest struct {

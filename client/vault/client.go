@@ -55,8 +55,24 @@ func (c *Client) GetVaultData(ctx context.Context) (*vault.VaultData, error) {
 		BufferBalance:       res.MustInt(5),
 		StakersBalance:      res.MustInt(6),
 		ExecutorsBalance:    res.MustInt(7),
-		V3Paused:            res.MustInt(8).Int64() != 0,
+		V3Paused:            len(res.AsTuple()) > 8 && res.MustInt(8).Int64() != 0,
 	}, nil
+}
+
+func (c *Client) GetSmartAccountFactoryAddress(ctx context.Context) (*address.Address, error) {
+	res, err := c.runGet(ctx, "get_vault_whitelisted_addresses")
+	if err != nil {
+		return nil, err
+	}
+	dict, err := res.Cell(0)
+	if err != nil {
+		return nil, err
+	}
+	value, err := dict.AsDict(4).LoadValueByIntKey(big.NewInt(6))
+	if err != nil {
+		return nil, err
+	}
+	return value.LoadAddr()
 }
 
 func (c *Client) GetBufferData(ctx context.Context) (*vault.BufferData, error) {

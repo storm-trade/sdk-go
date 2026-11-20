@@ -1,13 +1,22 @@
 package tlb_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/cristalhq/base64"
+	stlb "github.com/storm-trade/sdk-go/tlb"
 	"github.com/stretchr/testify/require"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 )
+
+func TestOrderJSONOfUnknownTypeIsAnError(t *testing.T) {
+	for _, body := range []string{`{"type":"liquidate"}`, `{"type":"force_close"}`, `{}`} {
+		var order stlb.Order
+		require.Error(t, json.Unmarshal([]byte(body), &order))
+	}
+}
 
 func Test_UnpackPriceRef(t *testing.T) {
 	c, err := base64.StdEncoding.DecodeString("te6cckEBAQEAGwAAMmAoWu03bAQu6KrAZyErAQAGZyDKZGcg0Ww04me7")

@@ -1,6 +1,9 @@
 package sequencer
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"math/big"
+)
 
 type PaymentMode string
 
@@ -18,6 +21,9 @@ type Status struct {
 	PendingBundles     int    `json:"pending_bundles"`
 	FinalizingBundles  int    `json:"finalizing_bundles"`
 	CommittedBundles   int    `json:"committed_bundles"`
+	ConfirmedBundles   int    `json:"confirmed_bundles"`
+	FailedBundles      int    `json:"failed_bundles"`
+	PendingIntents     int    `json:"pending_intents"`
 }
 
 type AccountState struct {
@@ -28,6 +34,14 @@ type AccountState struct {
 	Version   int                      `json:"version"`
 	Keys      *AccountKeys             `json:"keys,omitempty"`
 	Positions map[string]PositionEntry `json:"positions,omitempty"`
+	Highload  *AccountHighload         `json:"highload,omitempty"`
+}
+
+type AccountHighload struct {
+	OldQueries    []uint64 `json:"old_queries"`
+	Queries       []uint64 `json:"queries"`
+	LastCleanTime uint64   `json:"last_clean_time"`
+	Timeout       uint64   `json:"timeout"`
 }
 
 type AccountBalance struct {
@@ -47,8 +61,10 @@ type UserPublicKeys struct {
 }
 
 type BalanceResponse struct {
-	MinterAddress string `json:"minter_address,omitempty"`
-	Amount        uint64 `json:"amount"`
+	MinterAddress string  `json:"minter_address,omitempty"`
+	Amount        uint64  `json:"amount"`
+	Leased        *uint64 `json:"leased,omitempty"`
+	Locked        *uint64 `json:"locked,omitempty"`
 }
 
 type PositionEntry struct {
@@ -57,15 +73,15 @@ type PositionEntry struct {
 }
 
 type PositionData struct {
-	Size                         int64  `json:"size"`
-	Direction                    int    `json:"direction"`
-	Margin                       string `json:"margin"`
-	OpenNotional                 string `json:"open_notional"`
-	LastUpdatedCumulativePremium int64  `json:"last_updated_cumulative_premium"`
-	Fee                          uint64 `json:"fee"`
-	Discount                     uint64 `json:"discount"`
-	Rebate                       uint64 `json:"rebate"`
-	LastUpdatedTimestamp         uint64 `json:"last_updated_timestamp"`
+	Size                         *big.Int `json:"size"`
+	Direction                    int      `json:"direction"`
+	Margin                       string   `json:"margin"`
+	OpenNotional                 string   `json:"open_notional"`
+	LastUpdatedCumulativePremium int64    `json:"last_updated_cumulative_premium"`
+	Fee                          uint64   `json:"fee"`
+	Discount                     uint64   `json:"discount"`
+	Rebate                       uint64   `json:"rebate"`
+	LastUpdatedTimestamp         uint64   `json:"last_updated_timestamp"`
 }
 
 type PositionResponse struct {
@@ -127,10 +143,16 @@ type SettledAction struct {
 	OrderRequests json.RawMessage `json:"order_requests,omitempty"`
 }
 
-type SyncPositionRequest struct {
-	SmartAccount string `json:"smart_account"`
-	VAmm         string `json:"vamm"`
-	Direction    string `json:"direction"`
+type SmartAccountFees struct {
+	DepositNative           uint64 `json:"deposit_native"`
+	DepositJetton           uint64 `json:"deposit_jetton"`
+	DepositWithDeployNative uint64 `json:"deposit_with_deploy_native"`
+	DepositWithDeployJetton uint64 `json:"deposit_with_deploy_jetton"`
+	Withdraw                uint64 `json:"withdraw"`
+	Storage                 uint64 `json:"storage"`
+	JettonTransferGas       uint64 `json:"jetton_transfer_gas"`
+	NativeReserve           uint64 `json:"native_reserve"`
+	JettonReserve           uint64 `json:"jetton_reserve"`
 }
 
 type CancelOrderRequest struct {
@@ -190,11 +212,17 @@ type BundleID struct {
 }
 
 type Bundle struct {
+	Referral       json.RawMessage `json:"referral,omitempty"`
+	TradeQueryID   uint64          `json:"trade_query_id,omitempty"`
+	PositionClosed bool            `json:"position_closed,omitempty"`
+
 	Status        string          `json:"status"`
+	Reason        string          `json:"reason,omitempty"`
 	Outcome       *BundleOutcome  `json:"outcome,omitempty"`
 	ID            BundleID        `json:"id"`
 	LeasedQueryID uint64          `json:"leased_query_id"`
 	CreatedAt     string          `json:"created_at"`
+	SentAt        int64           `json:"sent_at,omitempty"`
 	LastUpdate    string          `json:"last_update"`
 	Intents       json.RawMessage `json:"intents,omitempty"`
 	IntentHashes  []string        `json:"intent_hashes"`

@@ -36,7 +36,7 @@ var (
 //_ bundle_sender_address:MsgAddress balance_delta:uint64 amm_address:MsgAddressInt direction:Direction position_data:(Maybe ^PositionData) = NotificationPayload
 
 type DepositNativePayload struct {
-	_               tlb.Magic        `tlb:"#29bb3721" json:"_"`
+	_               tlb.Magic        `tlb:"#29bb3721"`
 	QueryID         uint64           `tlb:"## 64" json:"query_id"`
 	Amount          *tlb.Coins       `tlb:"." json:"amount"`
 	ReceiverAddress *address.Address `tlb:"addr" json:"receiver_address"`
@@ -45,7 +45,7 @@ type DepositNativePayload struct {
 }
 
 type DepositJettonPayload struct {
-	_               tlb.Magic        `tlb:"#76840119" json:"_"`
+	_               tlb.Magic        `tlb:"#76840119"`
 	QueryID         uint64           `tlb:"## 64" json:"query_id"`
 	ReceiverAddress *address.Address `tlb:"addr" json:"receiver_address"`
 	Init            bool             `tlb:"bool" json:"init"`
@@ -75,36 +75,36 @@ type FailedBundleExecution struct {
 }
 
 type Withdraw struct {
-	_            tlb.Magic        `tlb:"#6eec039d" json:"_"`
+	_            tlb.Magic        `tlb:"#6eec039d"`
 	QueryID      uint64           `tlb:"## 64" json:"query_id"`
 	VaultAddress *address.Address `tlb:"addr" json:"vault_address"`
 	Amount       *tlb.Coins       `tlb:"." json:"amount"`
 }
 
 type AddPublicKey struct {
-	_         tlb.Magic `tlb:"#220c4c19" json:"_"`
+	_         tlb.Magic `tlb:"#220c4c19"`
 	QueryID   uint64    `tlb:"## 64" json:"query_id"`
 	PublicKey PublicKey `tlb:"bits 256" json:"public_key"`
 }
 
 type RemovePublicKey struct {
-	_         tlb.Magic `tlb:"#76519f8b" json:"_"`
+	_         tlb.Magic `tlb:"#76519f8b"`
 	QueryID   uint64    `tlb:"## 64" json:"query_id"`
 	PublicKey PublicKey `tlb:"bits 256" json:"public_key"`
 }
 
 type RemoveAllExceptCurrentPublicKey struct {
-	_         tlb.Magic `tlb:"#644794b8" json:"_"`
+	_         tlb.Magic `tlb:"#644794b8"`
 	QueryID   uint64    `tlb:"## 64" json:"query_id"`
 	PublicKey PublicKey `tlb:"bits 256" json:"public_key"`
 }
 
 type AddGasUnits struct {
-	_ tlb.Magic `tlb:"#5a091c43" json:"_"`
+	_ tlb.Magic `tlb:"#5a091c43"`
 }
 
 type DepositNotifyWithDeploy struct {
-	_             tlb.Magic        `tlb:"#18a092f7" json:"_"`
+	_             tlb.Magic        `tlb:"#18a092f7"`
 	QueryID       uint64           `tlb:"## 64" json:"query_id"`
 	VaultAddress  *address.Address `tlb:"addr" json:"vault_address"`
 	Amount        *tlb.Coins       `tlb:"." json:"amount"`
@@ -113,7 +113,7 @@ type DepositNotifyWithDeploy struct {
 }
 
 type DepositNotify struct {
-	_                   tlb.Magic        `tlb:"#186b2edf" json:"_"`
+	_                   tlb.Magic        `tlb:"#186b2edf"`
 	QueryID             uint64           `tlb:"## 64" json:"query_id"`
 	Amount              *tlb.Coins       `tlb:"." json:"amount"`
 	SenderAddress       *address.Address `tlb:"addr" json:"sender_address"`

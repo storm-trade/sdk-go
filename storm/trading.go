@@ -4,15 +4,18 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"math/big"
+	"strings"
 	"time"
 
-	sa "github.com/storm-trade/sdk-go/client/smartaccount"
 	"github.com/storm-trade/sdk-go/config"
 	"github.com/storm-trade/sdk-go/contracts/hw"
 	"github.com/storm-trade/sdk-go/contracts/smartaccount"
 	"github.com/storm-trade/sdk-go/sequencer"
 	stlb "github.com/storm-trade/sdk-go/tlb"
+	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
 )
 
@@ -45,6 +48,10 @@ func (c *Client) PlaceMarketOrder(ctx context.Context, market *config.Market, di
 	if o.takeProfit != nil {
 		takeTrigger = o.takeProfit
 	}
+	limitPrice := &zeroCoins
+	if o.worstPrice != nil {
+		limitPrice = o.worstPrice
+	}
 
 	order := &stlb.Order{
 		Value: stlb.MarketOrder{
@@ -53,7 +60,7 @@ func (c *Client) PlaceMarketOrder(ctx context.Context, market *config.Market, di
 				Direction:        uint(dir),
 				Amount:           amount,
 				Leverage:         leverage,
-				LimitPrice:       &zeroCoins,
+				LimitPrice:       limitPrice,
 				StopPrice:        &zeroCoins,
 				StopTriggerPrice: stopTrigger,
 				TakeTriggerPrice: takeTrigger,
@@ -133,28 +140,20 @@ func (c *Client) PlaceStopLimitOrder(ctx context.Context, market *config.Market,
 
 func (c *Client) ClosePositionFull(ctx context.Context, market *config.Market, dir config.Direction, opts ...Option) (*PlaceOrderResult, error) {
 	o := c.resolveOptions(opts)
-	if o.tonAPI == nil {
-		return nil, fmt.Errorf("TON API required: use WithTONApi()")
-	}
 	if o.smartAccount == nil {
 		return nil, fmt.Errorf("smart account required: use WithSmartAccount()")
 	}
 
-	saClient := sa.NewClient(o.tonAPI, o.smartAccount)
-	pos, err := saClient.GetPosition(ctx, market.VammAddress, uint8(dir))
+	state, err := c.seq.GetAccountState(ctx, o.smartAccount.String())
 	if err != nil {
-		return nil, fmt.Errorf("get position: %w", err)
+		return nil, fmt.Errorf("get account state: %w", err)
 	}
-	if pos == nil || pos.Data == nil {
+	pos := state.Positions[market.VammAddress.StringRaw()+"_"+string(stlb.DirectionFromInt(int(dir)))]
+	if pos.Data == nil || pos.Data.Size == nil || pos.Data.Size.Sign() == 0 {
 		return nil, fmt.Errorf("no open position")
 	}
 
-	var state stlb.PositionState
-	if err := tlb.LoadFromCell(&state, pos.Data.MustBeginParse()); err != nil {
-		return nil, fmt.Errorf("parse position: %w", err)
-	}
-
-	amount := tlb.FromNanoTON(state.Size)
+	amount := tlb.FromNanoTON(new(big.Int).Abs(pos.Data.Size))
 	return c.ClosePosition(ctx, market, dir, &amount, opts...)
 }
 
@@ -286,8 +285,21 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 		return nil, fmt.Errorf("smart account required: use WithSmartAccount()")
 	}
 
+	builder := o.builder
+	if builder != "" {
+		addr, err := address.ParseRawAddr(builder)
+		if err != nil {
+			if addr, err = address.ParseAddr(strings.NewReplacer("+", "-", "/", "_").Replace(builder)); err != nil {
+				return nil, fmt.Errorf("invalid builder address %q: %w", builder, err)
+			}
+		}
+		builder = addr.StringRaw()
+	}
+
 	pubKey := []byte(o.signer.Public().(ed25519.PublicKey))
 
+	c.queryMu.Lock()
+	defer c.queryMu.Unlock()
 	nextQID, err := c.reserveQueryIDs(ctx, o)
 	if err != nil {
 		return nil, fmt.Errorf("get next query ID: %w", err)
@@ -315,7 +327,7 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 	}
 
 	req := sequencer.PlaceOrderRequest{
-		Builder:      o.builder,
+		Builder:      builder,
 		SmartAccount: o.smartAccount.String(),
 		Message:      base64.StdEncoding.EncodeToString(intentCell.ToBOC()),
 		PublicKey:    base64.StdEncoding.EncodeToString(pubKey),
@@ -333,6 +345,7 @@ func (c *Client) placeOrder(ctx context.Context, market *config.Market, order *s
 	req.OrderRequests = orResult.requests
 
 	resp, err := c.seq.PlaceOrder(ctx, req)
+	c.queryLeases[o.smartAccount.StringRaw()] = queryLease{next: nextQID + uint64(1+len(req.OrderRequests)), hash: hex.EncodeToString(intentCell.Hash())}
 
 	return &PlaceOrderResult{
 		QueryID:        nextQID,

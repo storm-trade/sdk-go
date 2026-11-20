@@ -2,6 +2,7 @@ package sequencer
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ func TestClient_GetAccountState(t *testing.T) {
 		w.Write([]byte(`{
 			"type":0,
 			"factory":"EQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_bBh",
-			"owner":"EQA_ws41YDkD4_G0kPiD0oVfK--vYOxsTBT41gGQYTAJhlVo",
+			"owner":"EQB8jr1VjJDoyBdx-Ntm4SWCtKIjsuHAOhjK4-h3C4NYEh3N",
 			"balances":[{"address":"EQAr2Q42","amount":942876379639}],
 			"version":0,
 			"keys":{"hot":"M1C6kyB7","cold":"YWvmFHcX","user_public_keys":{"values":["QcD0TIb/"]},"keys_count":1},
@@ -27,7 +28,7 @@ func TestClient_GetAccountState(t *testing.T) {
 	c := NewClient(server.URL)
 	state, err := c.GetAccountState(context.Background(), "0:cdd396d1")
 	require.NoError(t, err)
-	require.Equal(t, "EQA_ws41YDkD4_G0kPiD0oVfK--vYOxsTBT41gGQYTAJhlVo", state.Owner)
+	require.Equal(t, "EQB8jr1VjJDoyBdx-Ntm4SWCtKIjsuHAOhjK4-h3C4NYEh3N", state.Owner)
 	require.Equal(t, "EQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_bBh", state.Factory)
 	require.Equal(t, 0, state.Version)
 	require.Len(t, state.Balances, 1)
@@ -40,7 +41,7 @@ func TestClient_GetAccountState(t *testing.T) {
 	pos, ok := state.Positions["0:d06d_long"]
 	require.True(t, ok)
 	require.False(t, pos.Locked)
-	require.Equal(t, int64(12345121), pos.Data.Size)
+	require.Equal(t, "12345121", pos.Data.Size.String())
 	require.Equal(t, "98900000000", pos.Data.Margin)
 	require.Equal(t, uint64(900000), pos.Data.Fee)
 	require.Equal(t, uint64(1765376249), pos.Data.LastUpdatedTimestamp)
@@ -103,8 +104,21 @@ func TestClient_GetPositions(t *testing.T) {
 	require.Equal(t, "0:d06d34a3", positions[0].Market)
 	require.Equal(t, "long", positions[0].Direction)
 	require.Equal(t, "active", positions[0].State.Status)
-	require.Equal(t, int64(12345121), positions[0].State.Value.Size)
+	require.Equal(t, "12345121", positions[0].State.Value.Size.String())
 	require.Equal(t, "98900000000", positions[0].State.Value.Margin)
+}
+
+func TestClient_PositionSizeInt128(t *testing.T) {
+	const live = `[{"market":"0:38dc7ce7c6e3d5d43d61324bad11e78fdb8bc8b48fe28c2d8cd5d710b345a0d0","direction":"long","state":{"status":"confirmed","value":{"size":%s,"direction":0,"margin":"209874000","open_notional":"229461943","last_updated_cumulative_premium":149994703,"fee":400000,"discount":600000000,"rebate":0,"last_updated_timestamp":1794301247}}}]`
+	for _, size := range []string{"210009392", "-2673928924942", "-170141183460469231731687303715884105728", "170141183460469231731687303715884105727"} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, live, size)
+		}))
+		positions, err := NewClient(server.URL).GetPositions(context.Background(), "0:test")
+		server.Close()
+		require.NoError(t, err)
+		require.Equal(t, size, positions[0].State.Value.Size.String())
+	}
 }
 
 func TestClient_GetNextQueryID(t *testing.T) {

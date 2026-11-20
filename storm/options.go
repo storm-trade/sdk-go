@@ -26,6 +26,7 @@ type clientOptions struct {
 	wallet       *wallet.Wallet
 	stopLoss     *tlb.Coins
 	takeProfit   *tlb.Coins
+	worstPrice   *tlb.Coins
 	expiration   *uint32
 	queryID      *uint64
 }
@@ -76,6 +77,10 @@ func WithStopLoss(price *tlb.Coins) Option {
 
 func WithTakeProfit(price *tlb.Coins) Option {
 	return func(o *clientOptions) { o.takeProfit = price }
+}
+
+func WithWorstPrice(price *tlb.Coins) Option {
+	return func(o *clientOptions) { o.worstPrice = price }
 }
 
 func WithExpiration(exp uint32) Option {

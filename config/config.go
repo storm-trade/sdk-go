@@ -70,13 +70,15 @@ type NetworkInfo struct {
 var Networks = map[Network]NetworkInfo{
 	Testnet: {
 		ConfigURL:      "https://api.stage.stormtrade.dev/api/config",
-		FactoryAddress: "kQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_Qvr",
+		FactoryAddress: "kQDVpb_2raFUIx10EueJOtUU1AsWBHmy-NdcP6eobCK6dKBD",
 	},
 	Mainnet: {
-		ConfigURL:      "https://api5.storm.tg/api/config",
-		FactoryAddress: "EQA34l2ywiFdu_kb-HZMqLngFVDjw0DJZHo1aBokOap8xVMU",
+		ConfigURL:      "https://api.storm.tg/api/config",
+		FactoryAddress: "EQAnaO5Eo2o8ynQox8DaA_uTawUaxjMcCppwdqk-ckBiQDRx",
 	},
 }
+
+var LegacyAssets = map[string]bool{"jUSDT": true, "USDe": true, "tgUSD": true}
 
 type BaseAssetInfo struct {
 	Name  string `json:"name"`

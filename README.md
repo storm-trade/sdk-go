@@ -10,7 +10,7 @@ V3 supports `storm.WithBuilder(address)`, `storm.WithSequencer(client)`, `GetBui
 
 Testnet defaults now use the public stage V3 endpoint, not localhost. Use `STORM_BUILDER` and `STORM_V3_URL` with `cmd/example`; `go run ./cmd/builders registry` and `go run ./cmd/builders intent HASH` perform read-only checks without wallet keys.
 
-`WithQueryID` now honors an explicitly allocated ID. A Client reserves user IDs for concurrent submissions, including attached SL/TP, before sending; separate clients/processes must coordinate allocation externally. On an HTTP failure after signing, order methods return correlation data with the error. Reconcile that hash before creating another economic intent. Neither HTTP 200 nor intent `done` proves on-chain settlement: match the intent to its executor bundle and confirm its outcome/transaction.
+`WithQueryID` now honors an explicitly allocated ID. A Client sends its orders one at a time and reserves user IDs, including attached SL/TP; after a rejected or failed order it continues from the sequencer's next ID. Separate clients/processes must coordinate allocation externally. On an HTTP failure after signing, order methods return correlation data with the error. Reconcile that hash before creating another economic intent. Neither HTTP 200 nor intent `done` proves on-chain settlement: match the intent to its executor bundle and confirm its outcome/transaction.
 
 Run `go test -race ./...` for the full SDK suite and shared JS/Go signature fixtures. These additions require the reviewed V3 candidate/release; a new version is not claimed here.
 
@@ -81,10 +81,11 @@ fmt.Printf("Order hash: %x\n", result.OrderHash)
 | `WithSmartAccount(addr)` | Smart Account address |
 | `WithTONApi(api)` | TON API client (for deposits, withdrawals, on-chain queries) |
 | `WithWallet(w)` | Wallet for on-chain transactions |
-| `WithClockSkew(d)` | Compensate local clock offset (recommended: 5s) |
+| `WithClockSkew(d)` | Compensate local clock offset (default 15s) |
 | `WithGasless()` | Use gasless execution mode |
-| `WithInit()` | Initialize Smart Account on first deposit |
+| `WithInit()` | Require the deposit to initialize the Smart Account |
 | `WithPublicKey(key)` | Set public key during initialization |
+| `WithWorstPrice(price)` | Worst fill price of a market order (recommended) |
 | `WithExpiration(uint32)` | Custom order expiration (unix timestamp) |
 | `WithQueryID(uint64)` | Custom query ID |
 
@@ -120,7 +121,7 @@ result, _ := client.PlaceStopLimitOrder(ctx, market, config.Long, &amount, 3_000
 size := tlb.MustFromDecimal("0.001", 9)
 result, _ := client.ClosePosition(ctx, market, config.Long, &size)
 
-// Close entire position (queries size on-chain)
+// Close entire position (reads the size from the sequencer)
 result, _ := client.ClosePositionFull(ctx, market, config.Long)
 
 // Standalone SL/TP on existing position
@@ -140,24 +141,31 @@ client.CancelOrder(ctx, result.OrderHash)
 
 ### Deposits & Withdrawals
 
-Amounts use the **asset's native decimals** (6 for USDT, 9 for TON/NOT).
+Deposit amounts use the **asset's native decimals** (6 for USDT, 9 for TON/NOT). Withdraw amounts use **9 decimals**.
 
 ```go
 amount := tlb.MustFromDecimal("100", 6)
 client.Deposit(ctx, "USDT", &amount)
 
 // First deposit — init Smart Account + register key
-client.Deposit(ctx, "TON", &amount, storm.WithInit(), storm.WithPublicKey(pubKey))
+client.Deposit(ctx, "TON", &amount, storm.WithPublicKey(pubKey))
 
-client.Withdraw(ctx, "USDT", &amount)
+withdrawAmount := tlb.MustFromDecimal("100", 9)
+client.Withdraw(ctx, "USDT", &withdrawAmount)
 ```
 
-| init | publicKey | Result |
-|------|-----------|--------|
-| true | set | Deploy SA + register key |
-| true | nil | Deploy SA, no key |
-| false | nil | Normal deposit |
-| false | set | **Error 115** — contract rejects key without init |
+`Deposit` reads whether the Smart Account is initialized; with `WithInit()` it refuses an initialized account.
+
+| Smart Account | publicKey | Result |
+|---------------|-----------|--------|
+| not initialized | set | Deploy SA + register key |
+| not initialized | nil | Deploy SA, no key |
+| initialized | nil | Normal deposit |
+| initialized | set | Refused: use `AddPublicKey` |
+
+jUSDT, USDe and tgUSD are on retired vaults: `Deposit` and `Withdraw` refuse them.
+
+`GaslessDeposit` refuses less than the service minimum (0.001 TON, 0.1 USDT). Gasless TON withdrawals are not supported by the backend yet.
 
 ### Result
 
@@ -181,11 +189,13 @@ type PlaceOrderResult struct {
 client.AddPublicKey(ctx)
 ```
 
+Keys whose first byte is 0x00 are refused: the sequencer cannot use them (`cmd/example keygen` skips them).
+
 ---
 
 ## v2 SDK (Direct Wallet)
 
-v2 sends TON transactions directly to Vault and Position Manager contracts. Includes executor fee as a second message automatically.
+v2 sends TON transactions directly to Vault and Position Manager contracts. On mainnet, orders, closes, stop losses and take profits include the 0.015 TON executor fee as a second message. Markets of the retired vaults (jUSDT, USDe, tgUSD) are refused, except `CancelOrder`.
 
 ### Quick Start
 
@@ -220,7 +230,7 @@ fmt.Printf("TX hash: %s\n", result.Hash)
 | `WithReferralID(id)` | Referral NFT index (applied on first order per market) |
 | `WithStopLoss(price)` | Attach SL trigger to new order |
 | `WithTakeProfit(price)` | Attach TP trigger to new order |
-| `WithExpiration(uint32)` | Custom order expiration (unix timestamp) |
+| `WithExpiration(uint32)` | Custom order expiration (unix timestamp; market orders default to 120 s) |
 | `WithQueryID(uint64)` | Custom query ID for jetton transfers |
 
 ### Key Differences from v3
@@ -232,7 +242,7 @@ fmt.Printf("TX hash: %s\n", result.Hash)
 | Oracle data | Sequencer injects | SDK fetches for margin ops |
 | SL/TP on open | OrderRequest intents | Trigger prices in order cell |
 | Cancel | By order hash | By orderType + orderIndex |
-| Executor fee | Not needed | Auto-appended |
+| Executor fee | Not needed | Mainnet orders and closes |
 | Amount decimals | 9 (internal) | Collateral decimals (6 USDT, 9 TON) |
 | PM init | Not applicable | Auto-detected |
 
@@ -416,8 +426,8 @@ go run ./cmd/v2example cancel BTC USDT long 2 0
 
 | Network | Factory |
 |---------|---------|
-| Testnet | `kQDrG1ZEn3BKkFLAcj1o2bDtlyKDxHCWAyhbTqQxLmk3_Qvr` |
-| Mainnet | `EQA34l2ywiFdu_kb-HZMqLngFVDjw0DJZHo1aBokOap8xVMU` |
+| Testnet | `kQDVpb_2raFUIx10EueJOtUU1AsWBHmy-NdcP6eobCK6dKBD` |
+| Mainnet | `EQAnaO5Eo2o8ynQox8DaA_uTawUaxjMcCppwdqk-ckBiQDRx` |
 
 Market and vault addresses are fetched automatically from the config API.
 
@@ -429,8 +439,9 @@ Market and vault addresses are fetched automatically from the config API.
 | 170 | Smart Account | Invalid `created_at` timestamp |
 | 171 | Smart Account | Query already processed |
 | 402 | Smart Account | Public key not registered |
+| 409 | vAMM | Leverage above the maximum |
 | 411 | vAMM | Wrong order size |
-| 426 | vAMM | Wrong leverage |
+| 426 | vAMM | Leverage below the minimum |
 | 471 | vAMM | Position not ready for close (cooldown) |
 | 511 | Position Manager | Position not found |
 | 514 | Position Manager | Order not found |

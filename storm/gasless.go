@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/storm-trade/sdk-go/config"
@@ -28,6 +29,8 @@ var gaslessAssetAddresses = map[config.Network]map[string]*address.Address{
 	},
 }
 
+var gaslessMinDeposits = map[string]int64{"TON": 1_000_000, "USDT": 100_000}
+
 func (c *Client) GaslessDeposit(ctx context.Context, assetName string, amount *tlb.Coins, opts ...Option) error {
 	o := c.resolveOptions(opts)
 	if o.tonAPI == nil {
@@ -46,7 +49,11 @@ func (c *Client) GaslessDeposit(ctx context.Context, assetName string, amount *t
 	if err != nil {
 		return err
 	}
+	if minimum, ok := gaslessMinDeposits[asset.Name]; ok && amount.Nano().Cmp(big.NewInt(minimum)) < 0 {
+		return fmt.Errorf("gasless deposit of %s below the service minimum of %d units", asset.Name, minimum)
+	}
 
+	msg := wallet.SimpleMessage(gaslessWallet, *amount, nil)
 	if asset.JettonMaster != nil {
 		jw, err := jetton.NewJettonMasterClient(o.tonAPI, asset.JettonMaster).GetJettonWallet(ctx, o.wallet.WalletAddress())
 		if err != nil {
@@ -59,14 +66,13 @@ func (c *Client) GaslessDeposit(ctx context.Context, assetName string, amount *t
 			return fmt.Errorf("build jetton transfer: %w", err)
 		}
 
-		gas := tlb.MustFromTON("0.05")
-		msg := wallet.SimpleMessage(jw.Address(), gas, payload)
-		_, _, err = o.wallet.SendWaitTransaction(ctx, msg)
-		return err
+		msg = wallet.SimpleMessage(jw.Address(), tlb.MustFromTON("0.05"), payload)
 	}
 
-	msg := wallet.SimpleMessage(gaslessWallet, *amount, nil)
-	_, _, err = o.wallet.SendWaitTransaction(ctx, msg)
+	tx, _, err := o.wallet.SendWaitTransaction(ctx, msg)
+	if err == nil && tx.OutMsgCount == 0 {
+		return fmt.Errorf("wallet transaction %x sent no message: check the wallet balance", tx.Hash)
+	}
 	return err
 }
 
